@@ -592,19 +592,155 @@ def project_detail_view(request, project_id):
         'role': request.COOKIES.get('user_role'),
     })
 
+from django.shortcuts import render, redirect
+from django.db import connection
+from datetime import datetime
 
 def assignment_list_view(request):
     user_role = request.COOKIES.get('user_role')
-    if not user_role:
-        return redirect('/login/')
+    user_id = request.COOKIES.get('user_id')
+
+    selected_project_id = request.GET.get('project_id')
+    selected_project = None
+    assigned = []
+    available = []
+
+    if request.method == 'POST':
+        project_id = request.POST.get('project_id')
+        remove_user_id = request.POST.get('remove_user_id')
+        if remove_user_id:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    DELETE FROM assignments
+                    WHERE project_id = %s AND user_id = %s
+                """, [project_id, remove_user_id])
+            return redirect(f"/assignments/?project_id={project_id}")
+        target_user_id = request.POST.get('user_id')
+        assign_role = request.POST.get('assign_role')
+
+        if user_role in ['admin', 'manager'] and project_id and target_user_id and assign_role:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM assignments
+                    WHERE project_id = %s AND user_id = %s
+                """, [project_id, target_user_id])
+                exists = cursor.fetchone()[0]
+                if not exists:
+                    cursor.execute("""
+                        INSERT INTO assignments (project_id, user_id, role, assigned_date)
+                        VALUES (%s, %s, %s, NOW())
+                    """, [project_id, target_user_id, assign_role])
+
+            return redirect(f'/assignments/?project_id={project_id}')
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, task_id, user_id FROM assignments")
-        rows = cursor.fetchall()
+        # все проекты
+        cursor.execute("SELECT id, name, start_date, end_date FROM projects")
+        project_rows = cursor.fetchall()
 
-    assignments = [{'id': row[0], 'task_id': row[1], 'user_id': row[2]} for row in rows]
+        projects = []
+        for row in project_rows:
+            pid = row[0]
+            cursor.execute("""
+                SELECT COUNT(*) FROM assignments WHERE project_id = %s AND role = 'dev'
+            """, [pid])
+            dev_count = cursor.fetchone()[0]
+            cursor.execute("""
+                SELECT COUNT(*) FROM assignments WHERE project_id = %s AND role = 'tester'
+            """, [pid])
+            tester_count = cursor.fetchone()[0]
+            cursor.execute("""
+                SELECT COUNT(*) FROM assignments WHERE project_id = %s AND role = 'manager'
+            """, [pid])
+            manager_count = cursor.fetchone()[0]
 
-    return render(request, 'core/assignments.html', {'assignments': assignments})
+            projects.append({
+                'id': pid,
+                'name': row[1],
+                'start_date': row[2],
+                'end_date': row[3],
+                'roles_count': {
+                    'dev': dev_count,
+                    'tester': tester_count,
+                    'manager': manager_count,
+                },
+                'staff_fulfilled': {
+                    'dev': dev_count > 0,
+                    'tester': tester_count > 0,
+                    'manager': manager_count > 0,
+                }
+            })
+
+        # Если выбран проект
+        if selected_project_id:
+            cursor.execute("SELECT id, name FROM projects WHERE id = %s", [selected_project_id])
+            row = cursor.fetchone()
+            if row:
+                selected_project = {
+                    'id': row[0],
+                    'name': row[1],
+                }
+
+                # Назначенные пользователи
+                cursor.execute("""
+                    SELECT u.id, u.full_name, a.role
+                    FROM assignments a
+                    JOIN users u ON u.id = a.user_id
+                    WHERE a.project_id = %s
+                """, [selected_project_id])
+                assigned = [
+                    {
+                        'id': row[0],
+                        'full_name': row[1],
+                        'role': row[2],
+                        'role_display': role_display(row[2])
+                    }
+                    for row in cursor.fetchall()
+                ]
+
+                # Свободные пользователи
+                cursor.execute("""
+                    SELECT u.id, u.full_name, u.role
+                    FROM users u
+                    WHERE u.role IN ('admin', 'manager', 'tester', 'dev')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM assignments a
+                        WHERE a.project_id = %s AND a.user_id = u.id
+                    )
+                """, [selected_project_id])
+                available = [
+                    {
+                        'id': row[0],
+                        'full_name': row[1],
+                        'role': row[2],
+                        'role_display': role_display(row[2])
+                    }
+                    for row in cursor.fetchall()
+                ]
+
+    return render(request, 'core/assignments.html', {
+        'projects': projects,
+        'selected_project': selected_project,
+        'assigned': assigned,
+        'available': available
+    })
+
+
+def role_display(role):
+    return {
+        'admin': 'Админ',
+        'manager': 'Менеджер',
+        'tester': 'Тестировщик',
+        'dev': 'Разработчик'
+    }.get(role, role)
+
+def role_display(role):
+    return {
+        'admin': 'Админ',
+        'manager': 'Менеджер',
+        'dev': 'Разработчик',
+        'tester': 'Тестировщик',
+    }.get(role, role)
 
 def file_list_view(request):
     project_id = request.GET.get('project_id')

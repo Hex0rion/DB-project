@@ -1,30 +1,196 @@
 {% extends "core/base.html" %}
-
-{% block title %}Назначения задач{% endblock %}
+{% block title %}Назначения по проектам{% endblock %}
 
 {% block content %}
-<h2>🎞️ Назначения задач</h2>
+<h2>Назначения по проектам</h2>
 
-<table>
-    <thead>
-        <tr>
-            <th>ID Назначения</th>
-            <th>ID Задачи</th>
-            <th>ID Пользователя</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for assignment in assignments %}
-            <tr>
-                <td>{{ assignment.id }}</td>
-                <td>{{ assignment.task_id }}</td>
-                <td>{{ assignment.user_id }}</td>
-            </tr>
-        {% empty %}
-            <tr>
-                <td colspan="3" style="text-align: center; color: #888;">Нет назначений.</td>
-            </tr>
+<style>
+.project-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: flex-start;
+}
+.project-card {
+  width: 250px;
+  padding: 15px;
+  border-radius: 12px;
+  border: 2px solid #ccc;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: 0.2s;
+}
+.project-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.project-title {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+.project-dates {
+  font-size: 0.9em;
+  color: #666;
+  margin: 5px 0 10px;
+}
+.role-status {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  border: 1px solid #999;
+  background-color: #eee;
+  color: #555;
+}
+.role-filled {
+  background: #e6f5ff;
+  border-color: #4a90e2;
+  color: #0366d6;
+}
+.assignment-panel {
+  width: 100%;
+  margin: 20px 0;
+  padding: 20px;
+  border-radius: 10px;
+  border: 2px solid #ccc;
+  background-color: #fdfdfd;
+}
+.user-block {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #ccc;
+  padding: 5px 0;
+}
+button {
+  margin-top: 10px;
+}
+button.assign {
+  margin: 3px 5px 0 0;
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid #007bff;
+  background-color: #eaf4ff;
+  color: #007bff;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+button.assign:hover {
+  background-color: #d0e8ff;
+}
+input#userSearch {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+</style>
+
+<div class="project-grid">
+  {% for project in projects %}
+    <div class="project-card" onclick="selectProject({{ project.id }})">
+      <div class="project-title">{{ project.name }}</div>
+      <div class="project-dates">
+        {{ project.start_date|default:"?" }} – {{ project.end_date|default:"?" }}
+      </div>
+      <div>Укомплектованность:</div>
+      <div class="role-status">
+        <div class="role-badge {% if project.staff_fulfilled.dev %}role-filled{% endif %}">Разраб. ({{ project.roles_count.dev }})</div>
+        <div class="role-badge {% if project.staff_fulfilled.tester %}role-filled{% endif %}">Тест. ({{ project.roles_count.tester }})</div>
+        <div class="role-badge {% if project.staff_fulfilled.manager %}role-filled{% endif %}">Мен. ({{ project.roles_count.manager }})</div>
+      </div>
+    </div>
+    {% if selected_project and selected_project.id == project.id %}
+    </div> <!-- Закрываем grid перед панелью -->
+    <div class="assignment-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">{{ selected_project.name }} — Назначения</h3>
+        <button onclick="window.location.href='/assignments/'">Свернуть</button>
+      </div>
+
+      <h4>Уже назначены:</h4>
+      {% if assigned %}
+        {% for person in assigned %}
+          <div class="user-block">
+            <span>{{ person.full_name }} ({{ person.role_display }})</span>
+            <form method="post" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="project_id" value="{{ selected_project.id }}">
+                <input type="hidden" name="remove_user_id" value="{{ person.id }}">
+                <button type="submit" class="assign" style="background-color: #fdd; color: #a00; border-color: #f99;">Удалить</button>
+              </form>
+              
+          </div>
         {% endfor %}
-    </tbody>
-</table>
+      {% else %}
+        <p>Нет назначений.</p>
+      {% endif %}
+
+      <h4>Свободные пользователи:</h4>
+      {% if available %}
+        <input type="text" id="userSearch" placeholder="Поиск по имени, логину, ID">
+        <form method="post" id="assignForm">
+          {% csrf_token %}
+          <input type="hidden" name="project_id" value="{{ selected_project.id }}">
+          <input type="hidden" name="user_id" id="selectedUserId">
+          <input type="hidden" name="assign_role" id="selectedRole">
+
+          <div id="userList">
+            {% for user in available %}
+              <div class="user-block user-item" data-search="{{ user.full_name|lower }} {{ user.role|lower }} {{ user.id }}">
+                <span>{{ user.full_name }} ({{ user.role_display }})</span>
+                <span>
+                    {% if user.role == 'dev' or user.role == 'manager' or user.role == 'admin' %}
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'dev')">Разраб.</button>
+                  {% endif %}
+                  {% if user.role == 'tester' or user.role == 'manager' or user.role == 'admin' %}
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'tester')">Тест.</button>
+                  {% endif %}
+                  {% if user.role == 'manager' or user.role == 'admin' %}
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'manager')">Мен.</button>
+                  {% endif %}
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </form>
+      {% else %}
+        <p>Нет доступных пользователей.</p>
+      {% endif %}
+    </div>
+    <div class="project-grid"> <!-- открываем обратно для следующих -->
+    {% endif %}
+  {% endfor %}
+</div>
+
+<script>
+function selectProject(id) {
+  window.location.href = "/assignments/?project_id=" + id;
+}
+
+function assign(userId, role) {
+  document.getElementById('selectedUserId').value = userId;
+  document.getElementById('selectedRole').value = role;
+  document.getElementById('assignForm').submit();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const searchInput = document.getElementById('userSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      const query = this.value.toLowerCase();
+      document.querySelectorAll('.user-item').forEach(function (el) {
+        const text = el.dataset.search;
+        el.style.display = text.includes(query) ? 'flex' : 'none';
+      });
+    });
+  }
+});
+</script>
 {% endblock %}
