@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>История коммитов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            margin: 40px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+            box-shadow: 0 0 12px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #ddd;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+        }
+        .added { background: #28a745; }
+        .modified { background: #ffc107; color: black; }
+        .deleted { background: #dc3545; }
+        .btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: #2b7cff;
+            color: white;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background: #1a5dcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📜 История коммитов</h2>
+    
+        {% if filtered_file %}
+            <p style="color: #555;">Фильтр: история изменений для файла <strong>{{ filtered_file }}</strong></p>
+            <a href="{% url 'project_commits' project_id %}" class="btn">Очистить фильтр</a>
+        {% endif %}
+    
+        <table>
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Файл</th>
+                    <th>Автор</th>
+                    <th>Комментарий</th>
+                    <th>Тип</th>
+                    <th>Скачать</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for commit in commits %}
+                    <tr>
+                        <td>{{ commit.committed_at|date:"d.m.Y H:i" }}</td>
+                        <td>{{ commit.file_name }}</td>
+                        <td>{{ commit.author }}</td>
+                        <td>{{ commit.message }}</td>
+                        <td>
+                            <span class="badge {{ commit.action }}">{{ commit.action }}</span>
+                        </td>
+                        <td>
+                            {% if commit.file_path %}
+                                <a href="/media/{{ commit.file_path }}" class="btn">📥 Скачать</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6">Нет коммитов.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <a href="{% url 'project_detail' project_id %}" style="display: inline-block; margin-top: 20px;" class="btn">← Назад к проекту</a>
+    </div>
+</body>
+</html>

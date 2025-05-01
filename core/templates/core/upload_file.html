@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Загрузка файла</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f2f2f2;
+        }
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            margin: auto;
+        }
+        h2, h3 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .form-button {
+            background-color: #2b7cff;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .form-button:hover {
+            background-color: #1a5dcc;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #2b7cff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>📤 Загрузить файл (как коммит):</h3>
+        <form method="post" action="/projects/{{ project.id }}/commit_upload/" enctype="multipart/form-data" class="form-card">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>Имя файла:</label>
+            <input type="text" name="file_name" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label>Файл:</label>
+            <input type="file" name="file" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label>Комментарий (опционально):</label>
+            <input type="text" name="commit_message" class="form-input">
+          </div>
+          <button type="submit" class="form-button">📥 Создать коммит</button>
+        </form>
+        <a href="{% url 'project_detail' project.id %}" class="back-link">← Назад к проекту</a>
+    </div>
+</body>
+</html>

@@ -518,10 +518,17 @@ def project_delete_view(request, project_id):
     messages.success(request, "Проект удалён.")
     return redirect('/projects/')
 
+from django.shortcuts import render, redirect
+from django.db import connection
+
 def project_detail_view(request, project_id):
     with connection.cursor() as cursor:
         # Получаем проект
-        cursor.execute("SELECT id, name, start_date, end_date, status FROM projects WHERE id = %s", [project_id])
+        cursor.execute("""
+            SELECT id, name, start_date, end_date, status
+            FROM projects
+            WHERE id = %s
+        """, [project_id])
         row = cursor.fetchone()
         if not row:
             return redirect('/projects/')
@@ -534,11 +541,26 @@ def project_detail_view(request, project_id):
             'status': row[4],
         }
 
-        # Получаем связанные файлы
-        cursor.execute("SELECT id, file_name FROM dev_files WHERE project_id = %s", [project_id])
-        files = cursor.fetchall()
+        # ✅ Получаем файлы проекта + авторов
+        cursor.execute("""
+            SELECT f.id, f.file_name, f.file_path, f.uploaded_at, u.full_name
+            FROM dev_files f
+            LEFT JOIN users u ON f.author_id = u.id
+            WHERE f.project_id = %s
+            ORDER BY f.uploaded_at DESC
+        """, [project_id])
+        files = [
+            {
+                'id': row[0],
+                'file_name': row[1],
+                'file_path': row[2],
+                'uploaded_at': row[3],
+                'full_name': row[4],
+            }
+            for row in cursor.fetchall()
+        ]
 
-        # Получаем тесты
+        # ✅ Получаем тесты проекта
         cursor.execute("""
             SELECT id, test_type, description, status, tested_at
             FROM tests
@@ -547,7 +569,7 @@ def project_detail_view(request, project_id):
         """, [project_id])
         tests = cursor.fetchall()
 
-        # Ответственные
+        # ✅ Получаем ответственных
         cursor.execute("""
             SELECT u.id, u.full_name
             FROM users u
@@ -558,11 +580,12 @@ def project_detail_view(request, project_id):
 
     return render(request, 'core/project_detail.html', {
         'project': project,
-        'role': request.COOKIES.get('user_role'),
         'files': files,
         'tests': tests,
         'responsible': responsible,
+        'role': request.COOKIES.get('user_role'),
     })
+
 
 def assignment_list_view(request):
     user_role = request.COOKIES.get('user_role')
@@ -679,28 +702,39 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.db import connection
 
+import os
+from django.conf import settings
+from django.shortcuts import redirect
+from django.contrib import messages
+from django.db import connection
+from datetime import datetime
+
 def project_upload_file_view(request, project_id):
     if request.method == "POST":
         file = request.FILES.get("file")
         file_name = request.POST.get("file_name") or file.name
         user_id = request.COOKIES.get("user_id")
 
-        uploads_dir = os.path.join("C:/Users/BMSTU/Documents/uploads", f"project_{project_id}")
-        os.makedirs(uploads_dir, exist_ok=True)
-        file_path = os.path.join(uploads_dir, file_name)
+        # Путь на диске: media/uploads/project_<id>/
+        relative_path = f"uploads/project_{project_id}/{file_name}"
+        full_dir = os.path.join(settings.MEDIA_ROOT, f"uploads/project_{project_id}")
+        full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
 
-        with open(file_path, 'wb+') as destination:
+        os.makedirs(full_dir, exist_ok=True)
+
+        with open(full_path, 'wb') as destination:
             for chunk in file.chunks():
                 destination.write(chunk)
 
         with connection.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
-                VALUES (%s, %s, %s, %s, NOW())
-            """, [project_id, user_id, file_name, file_path])
+                VALUES (%s, %s, %s, %s, %s)
+            """, [project_id, user_id, file_name, relative_path, datetime.now()])
 
         messages.success(request, f"Файл «{file_name}» загружен.")
     return redirect(f"/projects/{project_id}/")
+
 
 from datetime import datetime
 from django.shortcuts import redirect
@@ -778,3 +812,143 @@ def project_sync_files_view(request, project_id):
         messages.info(request, "Новых файлов не найдено.")
 
     return redirect(f"/projects/{project_id}/")
+
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import DevFile, Task
+from .forms import DevFileForm
+
+def upload_file(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+    if request.method == 'POST':
+        form = DevFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            dev_file = form.save(commit=False)
+            dev_file.task = task
+            dev_file.filename = form.cleaned_data['file'].name
+            dev_file.save()
+            return redirect('project_detail', project_id=task.project.id)
+    else:
+        form = DevFileForm()
+    return render(request, 'upload_file.html', {'form': form, 'task': task})
+
+import os
+from datetime import datetime
+from django.conf import settings
+from django.contrib import messages
+from django.db import connection
+from django.shortcuts import redirect
+
+def project_commit_upload_view(request, project_id):
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("file")
+        file_name = request.POST.get("file_name") or uploaded_file.name
+        commit_message = request.POST.get("commit_message") or f"Обновление файла {file_name}"
+        user_id = request.COOKIES.get("user_id")
+
+        # Время коммита
+        committed_at = datetime.now()
+
+        # Создание уникальной папки под коммит
+        with connection.cursor() as cursor:
+            # вставка коммита (временно, с пустыми путями)
+            cursor.execute("""
+                INSERT INTO commits (
+                    project_id, author_id, committed_at, commit_message,
+                    file_name, action, old_path, new_path, diff
+                ) VALUES (%s, %s, %s, %s, %s, %s, NULL, '', NULL)
+            """, [project_id, user_id, committed_at, commit_message, file_name, 'added'])
+
+            commit_id = cursor.lastrowid
+
+        # Путь к файлу
+        commit_dir = os.path.join(settings.MEDIA_ROOT, f'uploads/project_{project_id}/commit_{commit_id}')
+        os.makedirs(commit_dir, exist_ok=True)
+
+        new_path_rel = f'uploads/project_{project_id}/commit_{commit_id}/{uploaded_file.name}'
+        new_path_abs = os.path.join(settings.MEDIA_ROOT, new_path_rel)
+
+        with open(new_path_abs, 'wb') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        # Обновляем путь к файлу в коммите
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                UPDATE commits SET new_path = %s WHERE id = %s
+            """, [new_path_rel, commit_id])
+
+        messages.success(request, f"Файл «{file_name}» загружен в коммит #{commit_id}")
+    return redirect(f'/projects/{project_id}/')
+
+def project_commits_view(request, project_id):
+    file_filter = request.GET.get('file')
+
+    query = """
+        SELECT c.id, c.committed_at, c.commit_message,
+               c.file_name, c.action, c.new_path,
+               u.full_name
+        FROM commits c
+        JOIN users u ON c.author_id = u.id
+        WHERE c.project_id = %s
+    """
+    params = [project_id]
+
+    if file_filter:
+        query += " AND c.file_name = %s"
+        params.append(file_filter)
+
+    query += " ORDER BY c.committed_at DESC"
+
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        commits = [
+            {
+                'id': row[0],
+                'committed_at': row[1],
+                'message': row[2],
+                'file_name': row[3],
+                'action': row[4],
+                'file_path': row[5],
+                'author': row[6],
+            }
+            for row in cursor.fetchall()
+        ]
+
+    return render(request, 'core/project_commits.html', {
+        'commits': commits,
+        'project_id': project_id,
+        'filtered_file': file_filter
+    })
+
+def commit_detail_view(request, commit_id):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.id, c.project_id, c.file_name, c.action,
+                   c.commit_message, c.committed_at, c.diff,
+                   c.new_path, c.old_path,
+                   u.full_name
+            FROM commits c
+            JOIN users u ON c.author_id = u.id
+            WHERE c.id = %s
+        """, [commit_id])
+
+        row = cursor.fetchone()
+        if not row:
+            return redirect('/')
+
+        commit = {
+            'id': row[0],
+            'project_id': row[1],
+            'file_name': row[2],
+            'action': row[3],
+            'message': row[4],
+            'date': row[5],
+            'diff': row[6],
+            'new_path': row[7],
+            'old_path': row[8],
+            'author': row[9],
+        }
+
+    return render(request, 'core/commit_detail.html', {
+        'commit': commit
+    })

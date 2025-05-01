@@ -44,14 +44,14 @@ class Assignment(models.Model):
         managed = False
 
 class DevFile(models.Model):
-    id = models.AutoField(primary_key=True)
-    project = models.ForeignKey(Project, on_delete=models.DO_NOTHING)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE)
     filename = models.CharField(max_length=255)
-    path = models.CharField(max_length=255)
+    file = models.FileField(upload_to='uploads/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'dev_files'
-        managed = False
+
 
 class TestResult(models.Model):
     id = models.AutoField(primary_key=True)

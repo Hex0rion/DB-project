@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Коммит #{{ commit.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            margin: 40px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 900px;
+            margin: auto;
+            box-shadow: 0 0 12px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-bottom: 20px;
+        }
+        .meta {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .diff-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+        }
+        .added { background: #28a745; }
+        .modified { background: #ffc107; color: black; }
+        .deleted { background: #dc3545; }
+        .btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: #2b7cff;
+            color: white;
+            text-decoration: none;
+            margin-top: 20px;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #1a5dcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🧾 Коммит #{{ commit.id }}</h2>
+        <div class="meta">
+            Автор: <strong>{{ commit.author }}</strong> |
+            Файл: <strong>{{ commit.file_name }}</strong> |
+            Тип: <span class="badge {{ commit.action }}">{{ commit.action }}</span><br>
+            Дата: {{ commit.date|date:"d.m.Y H:i" }}
+        </div>
+
+        <div>
+            <strong>Комментарий:</strong><br>
+            {{ commit.message }}
+        </div>
+
+        {% if commit.diff %}
+        <div class="diff-box">
+            {{ commit.diff }}
+        </div>
+        {% endif %}
+
+        {% if commit.new_path %}
+            <a href="/media/{{ commit.new_path }}" class="btn">📥 Скачать файл</a>
+        {% endif %}
+
+        <a href="{% url 'project_commits' commit.project_id %}" class="btn">← Назад к коммитам</a>
+    </div>
+</body>
+</html>

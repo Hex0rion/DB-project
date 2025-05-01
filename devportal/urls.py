@@ -1,30 +1,22 @@
 from django.contrib import admin
 from django.urls import path
-from core.views import login_view, logout_view
-from core.views import register_view
-from core.views import home_view
-from core.views import users_view, create_user_view
-from core.views import edit_user_view, delete_user_view
-from core.views import approve_user_view
-from core.views import reject_user_view
 from django.shortcuts import redirect
 from core.views import (
-    project_list_view,
-    project_create_view,
-    project_edit_view,
-    project_delete_view,
-    project_detail_view,
+    login_view, logout_view, register_view, home_view,
+    users_view, create_user_view, edit_user_view, delete_user_view,
+    approve_user_view, reject_user_view,
+    project_list_view, project_create_view, project_edit_view, project_delete_view,
+    project_detail_view, project_upload_file_view, project_add_test_view,
+    project_assign_user_view, project_sync_files_view,
+    assignment_list_view, file_list_view, testresult_list_view,
+    file_upload_view, file_versions_view,
+    upload_file
 )
-from core.views import assignment_list_view, file_list_view, testresult_list_view
-from core.views import file_upload_view
-from core.views import file_versions_view
-from core.views import (
-    project_detail_view,
-    project_upload_file_view,
-    project_add_test_view,
-    project_assign_user_view,
-)
-from core.views import project_sync_files_view 
+from django.conf import settings
+from django.conf.urls.static import static
+from core.views import project_commit_upload_view
+from core.views import commit_detail_view
+from core.views import project_commits_view  
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -43,17 +35,19 @@ urlpatterns = [
     path('projects/<int:project_id>/', project_detail_view, name='project_detail'),
     path('projects/edit/<int:project_id>/', project_edit_view, name='project_edit'),
     path('projects/delete/<int:project_id>/', project_delete_view, name='project_delete'),
-    path('projects/', project_list_view, name='project_list'),
     path('assignments/', assignment_list_view, name='assignment_list'),
     path('files/', file_list_view, name='file_list'),
     path('tests/', testresult_list_view, name='testresult_list'),
     path('files/upload/', file_upload_view, name='file_upload'),
     path('files/versions/<int:file_id>/', file_versions_view, name='file_versions'),
-    path('projects/<int:project_id>/', project_detail_view, name='project_detail'),
     path('projects/<int:project_id>/upload/', project_upload_file_view, name='project_upload_file'),
     path('projects/<int:project_id>/add_test/', project_add_test_view, name='project_add_test'),
     path('projects/<int:project_id>/assign_user/', project_assign_user_view, name='project_assign_user'),
-    path("projects/<int:project_id>/upload/", project_upload_file_view, name="project_upload"),
-    path('projects/<int:project_id>/sync_files/', project_sync_files_view, name='project_sync_files'),
+    path("projects/<int:project_id>/sync_files/", project_sync_files_view, name='project_sync_files'),
+    path('upload/<int:task_id>/', upload_file, name='upload_file'),
+    path('commits/<int:commit_id>/', commit_detail_view, name='commit_detail'),
+    path('projects/<int:project_id>/commits/', project_commits_view, name='project_commits'),
 
-]
+
+    path('projects/<int:project_id>/commit_upload/', project_commit_upload_view, name='project_commit_upload'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
