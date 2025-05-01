@@ -173,7 +173,10 @@
       padding: 30px;
       background-color: #f6f8fa;
       cursor: pointer;
+      text-align: center;
+      position: relative;
       transition: border-color 0.2s, background-color 0.2s;
+      color: #24292f;
     }
 
     .dropzone-wrapper:hover {
@@ -181,10 +184,38 @@
       background-color: #e6f0fb;
     }
 
-    .fake-button {
-      color: #0969da;
-      text-decoration: underline;
+    .dropzone-wrapper input[type="file"] {
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
       cursor: pointer;
+    }
+
+    .fake-button {
+      text-decoration: underline;
+      color: inherit;
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    .file-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+  @media (max-width: 500px) {
+      .file-actions {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    .dropzone-wrapper.highlight {
+      border-color: #0969da;
+      background-color: #e6f0fb;
     }
   </style>
 </head>
@@ -212,9 +243,8 @@
   </div>
 
   <script>
-    // JS для исчезновения alert
     document.addEventListener("DOMContentLoaded", () => {
-      const fadeMessages = document.querySelectorAll(".fade-out");
+      const fadeMessages = document.querySelectorAll(".message");
       fadeMessages.forEach(msg => {
         setTimeout(() => {
           msg.style.opacity = "0";
@@ -222,6 +252,30 @@
         }, 10000);
       });
     });
-  </script>
+  </script>  
 </body>
 </html>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', e => {
+    e.preventDefault(); // <== это обязательно
+    dropzone.classList.add('highlight');
+  });
+
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('highlight');
+  });
+
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault(); // <== и тут
+    dropzone.classList.remove('highlight');
+    if (e.dataTransfer.files.length > 0) {
+      fileInput.files = e.dataTransfer.files;
+    }
+  });
+</script>

@@ -541,21 +541,27 @@ def project_detail_view(request, project_id):
             'status': row[4],
         }
 
-        # ✅ Получаем файлы проекта + авторов
+        # ✅ Показываем только последние версии файлов
         cursor.execute("""
-            SELECT f.id, f.file_name, f.file_path, f.uploaded_at, u.full_name
-            FROM dev_files f
-            LEFT JOIN users u ON f.author_id = u.id
-            WHERE f.project_id = %s
-            ORDER BY f.uploaded_at DESC
-        """, [project_id])
+            SELECT f1.file_name, f1.file_path, f1.uploaded_at, u.full_name
+            FROM dev_files f1
+            JOIN (
+                SELECT file_name, MAX(uploaded_at) AS last_upload
+                FROM dev_files
+                WHERE project_id = %s
+                GROUP BY file_name
+            ) f2 ON f1.file_name = f2.file_name AND f1.uploaded_at = f2.last_upload
+            JOIN users u ON f1.author_id = u.id
+            WHERE f1.project_id = %s
+            ORDER BY f1.uploaded_at DESC
+        """, [project_id, project_id])
+
         files = [
             {
-                'id': row[0],
-                'file_name': row[1],
-                'file_path': row[2],
-                'uploaded_at': row[3],
-                'full_name': row[4],
+                'file_name': row[0],
+                'file_path': row[1],
+                'uploaded_at': row[2],
+                'full_name': row[3],
             }
             for row in cursor.fetchall()
         ]
@@ -877,11 +883,23 @@ def project_commit_upload_view(request, project_id):
                 UPDATE commits SET new_path = %s WHERE id = %s
             """, [new_path_rel, commit_id])
 
+            cursor.execute("""
+                INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, [project_id, user_id, file_name, new_path_rel, committed_at])
+
         messages.success(request, f"Файл «{file_name}» загружен в коммит #{commit_id}")
     return redirect(f'/projects/{project_id}/')
 
 def project_commits_view(request, project_id):
     file_filter = request.GET.get('file')
+
+    # получаем все актуальные имена файлов проекта
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT file_name FROM dev_files WHERE project_id = %s
+        """, [project_id])
+        existing_files = set(row[0] for row in cursor.fetchall())
 
     query = """
         SELECT c.id, c.committed_at, c.commit_message,
@@ -917,7 +935,8 @@ def project_commits_view(request, project_id):
     return render(request, 'core/project_commits.html', {
         'commits': commits,
         'project_id': project_id,
-        'filtered_file': file_filter
+        'filtered_file': file_filter,
+        'existing_files': existing_files
     })
 
 def commit_detail_view(request, commit_id):

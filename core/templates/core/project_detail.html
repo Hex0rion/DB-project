@@ -12,8 +12,8 @@
   <p><strong>Статус:</strong> {{ project.status }}</p>
 </div>
 
-<!-- 🔘 Кнопки коммитов и синхронизации -->
-<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+<!-- 🔘 Кнопки действий проекта -->
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
   <a href="{% url 'project_commits' project.id %}" class="form-button">🕓 История всех коммитов проекта</a>
   <form method="post" action="/projects/{{ project.id }}/sync_files/">
     {% csrf_token %}
@@ -28,7 +28,7 @@
       <th style="text-align: left;">📄 Имя файла</th>
       <th>Загрузил</th>
       <th>Дата</th>
-      <th colspan="2">Действия</th>
+      <th>Действия</th>
     </tr>
   </thead>
   <tbody>
@@ -38,30 +38,36 @@
         <td>{{ file.full_name }}</td>
         <td>{{ file.uploaded_at|date:"d.m.Y H:i" }}</td>
         <td>
-          <a href="/media/{{ file.file_path }}" class="form-button">📥 Скачать</a>
-        </td>
-        <td>
-          <a href="{% url 'project_commits' project.id %}?file={{ file.file_name }}" class="form-button">🕓 История</a>
+          <div class="file-actions">
+            <a href="/media/{{ file.file_path }}" class="form-button">📥 Скачать</a>
+            <a href="{% url 'project_commits' project.id %}?file={{ file.file_name }}" class="form-button">🕓 История</a>
+          </div>
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="5">Нет загруженных файлов.</td></tr>
+      <tr><td colspan="4">Нет загруженных файлов.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 
 <!-- 🔘 Форма загрузки -->
-<form method="post" action="/projects/{{ project.id }}/upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 15px;">
+<form method="post" action="/projects/{{ project.id }}/commit_upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 20px;">
   {% csrf_token %}
   <input type="hidden" name="project_id" value="{{ project.id }}">
+
   <div class="form-group">
-    <label>Имя файла:</label>
+    <label for="file_name">Имя файла:</label>
     <input type="text" name="file_name" class="form-input" required>
   </div>
+
   <div class="form-group">
-    <label>Файл:</label>
-    <input type="file" name="file" class="form-input" required>
+    <label for="file">Файл:</label>
+    <div class="dropzone-wrapper">
+      📁 <strong>Перетащите файл сюда</strong> или <span class="fake-button">нажмите для выбора</span>
+      <input type="file" name="file" class="dropzone-input" required>
+    </div>
   </div>
+
   <button type="submit" class="form-button">➕ Загрузить</button>
 </form>
 
@@ -78,20 +84,24 @@
 </ul>
 
 <!-- 🔘 Форма добавления теста -->
-<form method="post" action="/projects/{{ project.id }}/add_test/" class="form-card" style="margin-top: 15px;">
+<form method="post" action="/projects/{{ project.id }}/commit_upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 20px;">
   {% csrf_token %}
+  <input type="hidden" name="project_id" value="{{ project.id }}">
+
   <div class="form-group">
-    <label>Описание:</label>
-    <input type="text" name="description" class="form-input" required>
+    <label>Имя файла:</label>
+    <input type="text" name="file_name" class="form-input" required>
   </div>
+
   <div class="form-group">
-    <label>Статус:</label>
-    <select name="status" class="form-input">
-      <option value="passed">✅ Пройден</option>
-      <option value="failed">❌ Провален</option>
-    </select>
+    <label>Файл:</label>
+    <div class="dropzone-wrapper" id="dropzone">
+      📁 <strong>Перетащите файл сюда</strong> или <span class="fake-button">нажмите для выбора</span>
+      <input type="file" name="file" id="file-input" required>
+    </div>
   </div>
-  <button type="submit" class="form-button">➕ Добавить тест</button>
+
+  <button type="submit" class="form-button">➕ Загрузить</button>
 </form>
 
 <hr style="margin: 30px 0;">
