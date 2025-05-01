@@ -17,6 +17,7 @@ from django.conf.urls.static import static
 from core.views import project_commit_upload_view
 from core.views import commit_detail_view
 from core.views import project_commits_view  
+from core.views import delete_file_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -47,7 +48,6 @@ urlpatterns = [
     path('upload/<int:task_id>/', upload_file, name='upload_file'),
     path('commits/<int:commit_id>/', commit_detail_view, name='commit_detail'),
     path('projects/<int:project_id>/commits/', project_commits_view, name='project_commits'),
-
-
+    path('files/delete/<int:file_id>/', delete_file_view, name='delete_file'),
     path('projects/<int:project_id>/commit_upload/', project_commit_upload_view, name='project_commit_upload'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

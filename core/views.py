@@ -894,13 +894,6 @@ def project_commit_upload_view(request, project_id):
 def project_commits_view(request, project_id):
     file_filter = request.GET.get('file')
 
-    # получаем все актуальные имена файлов проекта
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT file_name FROM dev_files WHERE project_id = %s
-        """, [project_id])
-        existing_files = set(row[0] for row in cursor.fetchall())
-
     query = """
         SELECT c.id, c.committed_at, c.commit_message,
                c.file_name, c.action, c.new_path,
@@ -915,28 +908,46 @@ def project_commits_view(request, project_id):
         query += " AND c.file_name = %s"
         params.append(file_filter)
 
-    query += " ORDER BY c.committed_at DESC"
+    query += " ORDER BY c.committed_at"
 
     with connection.cursor() as cursor:
         cursor.execute(query, params)
-        commits = [
-            {
-                'id': row[0],
-                'committed_at': row[1],
-                'message': row[2],
-                'file_name': row[3],
-                'action': row[4],
-                'file_path': row[5],
-                'author': row[6],
-            }
-            for row in cursor.fetchall()
-        ]
+        raw_commits = cursor.fetchall()
+
+    commits = []
+    file_state = {}
+
+    for row in raw_commits:
+        file_name = row[3]
+        new_path = row[5]
+
+        if file_name not in file_state:
+            status = 'создан'
+        elif file_state[file_name] == 'удалён':
+            status = 'создан'
+        else:
+            status = 'обновлён'
+
+        if not new_path:
+            status = 'удалён'
+            file_state[file_name] = 'удалён'
+        else:
+            file_state[file_name] = 'существует'
+
+        commits.append({
+            'id': row[0],
+            'committed_at': row[1],
+            'message': row[2],
+            'file_name': file_name,
+            'file_path': new_path,
+            'author': row[6],
+            'status': status,
+        })
 
     return render(request, 'core/project_commits.html', {
         'commits': commits,
         'project_id': project_id,
-        'filtered_file': file_filter,
-        'existing_files': existing_files
+        'filtered_file': file_filter
     })
 
 def commit_detail_view(request, commit_id):
@@ -971,3 +982,30 @@ def commit_detail_view(request, commit_id):
     return render(request, 'core/commit_detail.html', {
         'commit': commit
     })
+
+from django.http import HttpResponseNotFound
+
+def delete_file_view(request, file_id):
+    user_id = request.COOKIES.get('user_id')
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT project_id, file_name, file_path FROM dev_files WHERE id = %s", [file_id])
+        row = cursor.fetchone()
+
+        if not row:
+            return HttpResponseNotFound("Файл не найден.")
+
+        project_id, file_name, file_path = row
+
+        # фиксируем коммит об удалении
+        cursor.execute("""
+            INSERT INTO commits (project_id, author_id, committed_at, commit_message,
+                                 file_name, action, old_path, new_path, diff)
+            VALUES (%s, %s, NOW(), %s, %s, 'deleted', %s, '', NULL)
+        """, [project_id, user_id, f"Удаление файла {file_name}", file_name, file_path])
+
+        # удаляем текущую версию из dev_files
+        cursor.execute("DELETE FROM dev_files WHERE id = %s", [file_id])
+
+    messages.success(request, f"Файл «{file_name}» удалён.")
+    return redirect('/files/')

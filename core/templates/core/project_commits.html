@@ -30,16 +30,13 @@
           <td>{{ commit.author }}</td>
           <td>{{ commit.message }}</td>
           <td>
-            {% if commit.file_name in existing_files %}
-              {% if commit.file_path %}
-                <span class="commit-tag modified">Обновлён</span>
-              {% else %}
-                <span class="commit-tag deleted">Удалён</span>
-              {% endif %}
-            {% else %}
-              <span class="commit-tag added">Создан</span>
+            {% if commit.status == 'создан' %}
+              <span class="commit-tag added">создан</span>
+            {% elif commit.status == 'обновлён' %}
+              <span class="commit-tag modified">обновлён</span>
+            {% elif commit.status == 'удалён' %}
+              <span class="commit-tag deleted">удалён</span>
             {% endif %}
-
           </td>
           <td>
             {% if commit.file_path %}
