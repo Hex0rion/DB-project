@@ -1,0 +1,73 @@
+{% extends "core/base.html" %}
+
+{% block title %}Загрузка файла{% endblock %}
+
+{% block content %}
+<h2>➕ Загрузка нового файла</h2>
+
+{% if messages %}
+  <div style="margin-bottom: 16px;">
+    {% for message in messages %}
+      <div class="form-error">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form-card">
+  {% csrf_token %}
+
+  <!-- Выпадающий список задач -->
+  <div class="form-group">
+    <label for="task_id">Выберите задачу:</label>
+    <select name="task_id" id="task_id" class="form-input" required>
+      <option value="">-- выберите --</option>
+      {% for task in tasks %}
+        <option value="{{ task.id }}">{{ task.id }} — {{ task.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Drag and Drop зона -->
+  <div class="form-group">
+    <label for="file">Файл:</label>
+    <div class="dropzone-wrapper" onclick="document.getElementById('fileInput').click();">
+      <div id="dropLabel" style="text-align: center;">
+        📁 <strong>Перетащите файл сюда</strong> или <span class="fake-button">нажмите для выбора</span>
+      </div>
+      <input type="file" id="fileInput" name="file" required style="display: none;">
+    </div>
+  </div>
+
+  <button type="submit" class="form-button">💾 Загрузить файл</button>
+</form>
+
+<div style="margin-top: 20px;">
+  <a href="/files/" class="nav-button">← Назад к списку файлов</a>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const dropzone = document.querySelector('.dropzone-wrapper');
+  const input = document.getElementById('fileInput');
+
+  dropzone.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    dropzone.style.borderColor = '#218bff';
+    dropzone.style.backgroundColor = '#eaf3ff';
+  });
+
+  dropzone.addEventListener('dragleave', function (e) {
+    e.preventDefault();
+    dropzone.style.borderColor = '#d0d7de';
+    dropzone.style.backgroundColor = '#f6f8fa';
+  });
+
+  dropzone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    input.files = e.dataTransfer.files;
+    dropzone.style.borderColor = '#d0d7de';
+    dropzone.style.backgroundColor = '#f6f8fa';
+  });
+});
+</script>
+{% endblock %}

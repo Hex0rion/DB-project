@@ -1,0 +1,57 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.db-journal
+
+# Django stuff:
+*.sqlite3
+*.pyc
+*.pyo
+*.pyd
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+.env
+
+# VS Code and PyCharm
+.vscode/
+.idea/
+
+# Python environment
+.env/
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Reports, migrations, and test artifacts
+*.bak
+*.swp
+*.tmp
+*.orig
+*.log
+*.pdf
+*.xlsx
+*.csv
+
+# Migrations
+*/migrations/*.py
+*/migrations/*.pyc
+
+# Files uploaded by users
+uploads/

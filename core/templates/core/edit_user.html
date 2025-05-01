@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+
+{% block title %}Редактирование роли{% endblock %}
+
+{% block content %}
+<h2>👤 Редактирование роли пользователя</h2>
+
+<form method="post" class="form-card">
+  {% csrf_token %}
+
+  <div class="form-group">
+    <label><strong>ФИО:</strong></label>
+    <div class="form-input" style="background-color: #f6f8fa;">{{ user.full_name }}</div>
+  </div>
+
+  <div class="form-group">
+    <label><strong>Логин:</strong></label>
+    <div class="form-input" style="background-color: #f6f8fa;">{{ user.login }}</div>
+  </div>
+
+  <div class="form-group">
+    <label for="role"><strong>Роль:</strong></label>
+    <select name="role" id="role" class="form-input">
+      <option value="guest" {% if user.role == "guest" %}selected{% endif %}>Гость</option>
+      <option value="admin" {% if user.role == "admin" %}selected{% endif %}>Админ</option>
+      <option value="manager" {% if user.role == "manager" %}selected{% endif %}>Менеджер</option>
+      <option value="dev" {% if user.role == "dev" %}selected{% endif %}>Разработчик</option>
+      <option value="tester" {% if user.role == "tester" %}selected{% endif %}>Тестировщик</option>
+    </select>
+  </div>
+
+  <button type="submit" class="form-button">💾 Сохранить</button>
+</form>
+
+<div style="margin-top: 20px;">
+  <a href="/users/" class="nav-button">← Назад к списку пользователей</a>
+</div>
+{% endblock %}

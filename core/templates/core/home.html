@@ -1,0 +1,27 @@
+{% extends "core/base.html" %}
+
+{% block title %}Домашняя страница{% endblock %}
+
+{% block content %}
+<h2>🏠 Добро пожаловать, {{ username }}!</h2>
+
+<p>Ваша роль: <strong>{{ role }}</strong></p>
+
+{% if role == "admin" %}
+<div style="margin: 20px 0;">
+  <a href="/users/" class="nav-button">⚙️ Управление пользователями</a>
+</div>
+{% endif %}
+
+<h3>📋 Все проекты:</h3>
+
+<ul style="list-style: none; padding: 0;">
+  {% for project in projects %}
+    <li style="padding: 8px 12px; margin-bottom: 10px; background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px;">
+      <strong>{{ project.name }}</strong> — статус: <span style="color: #555;">{{ project.status }}</span>
+    </li>
+  {% empty %}
+    <li style="padding: 10px; text-align: center; color: #888;">Проекты отсутствуют.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

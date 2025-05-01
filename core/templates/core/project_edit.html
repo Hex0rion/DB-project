@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if project %}Редактирование{% else %}Создание{% endif %} проекта{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 20px;">
+  {% if project %}✏️ Редактирование{% else %}🆕 Создание{% endif %} проекта
+</h2>
+
+{% if messages %}
+  <div>
+    {% for message in messages %}
+      <div class="message {% if message.level_tag == 'error' %}message-error{% else %}message-info{% endif %} fade-out">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="post" class="form-card">
+  {% csrf_token %}
+
+  <div class="form-group">
+    <label for="name">Название проекта:</label>
+    <input type="text" name="name" id="name"
+           value="{{ input.name|default:'' }}" required
+           class="form-input">
+  </div>
+
+  <div class="form-group">
+    <label for="start_date">Дата начала:</label>
+    <input type="date" name="start_date" id="start_date"
+           value="{{ input.start_date|default:'' }}"
+           class="form-input {% if not input.start_date %}missing-input{% endif %}">
+  </div>
+
+  <div class="form-group">
+    <label for="end_date">Дата окончания:</label>
+    <input type="date" name="end_date" id="end_date"
+           value="{{ input.end_date|default:'' }}"
+           class="form-input {% if not input.end_date %}missing-input{% endif %}">
+  </div>
+
+  <div class="form-group">
+    <label for="status">Статус:</label>
+    <select name="status" id="status" required class="form-input">
+      <option value="">-- выберите --</option>
+      {% for st in statuses %}
+        <option value="{{ st }}" {% if input.status == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button type="submit" class="form-button">
+    {% if project %}💾 Сохранить{% else %}➕ Создать{% endif %}
+  </button>
+</form>
+
+<div style="margin-top: 20px;">
+  <a href="/projects/" class="nav-button">← Назад к списку проектов</a>
+</div>
+{% endblock %}

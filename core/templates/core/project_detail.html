@@ -1,0 +1,111 @@
+{% extends "core/base.html" %}
+
+{% block title %}Проект {{ project.name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 20px;">📁 Проект: <strong>{{ project.name }}</strong></h2>
+
+<div class="form-card" style="max-width: 500px; margin-bottom: 30px;">
+  <p><strong>ID:</strong> {{ project.id }}</p>
+  <p><strong>Дата начала:</strong> {{ project.start_date|date:"Y-m-d" }}</p>
+  <p><strong>Дата окончания:</strong> {{ project.end_date|date:"Y-m-d" }}</p>
+  <p><strong>Статус:</strong> {{ project.status }}</p>
+</div>
+
+<form method="post" action="/projects/{{ project.id }}/sync_files/">
+  {% csrf_token %}
+  <button type="submit" class="form-button">🔄 Синхронизировать файлы</button>
+</form>
+
+<h3>📄 Файлы проекта:</h3>
+<ul>
+  {% for file in files %}
+    <li>
+      📁 {{ file.file_name }} — 
+      <a href="/files/versions/{{ file.id }}/" class="nav-button">История</a>
+    </li>
+  {% empty %}
+    <li>Нет загруженных файлов.</li>
+  {% endfor %}
+</ul>
+
+<!-- 🔘 Форма загрузки -->
+<form method="post" action="/projects/{{ project.id }}/upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 15px;">
+  {% csrf_token %}
+  <input type="hidden" name="project_id" value="{{ project.id }}">
+  <div class="form-group">
+    <label>Имя файла:</label>
+    <input type="text" name="file_name" class="form-input" required>
+  </div>
+  <div class="form-group">
+    <label>Файл:</label>
+    <input type="file" name="file" class="form-input" required>
+  </div>
+  <button type="submit" class="form-button">➕ Загрузить</button>
+</form>
+
+<hr style="margin: 30px 0;">
+
+<!-- 🔹 Блок тестов -->
+<h3>🧪 Тесты:</h3>
+<ul>
+  {% for test in tests %}
+    <li>Тест #{{ test.id }} — статус: {{ test.status }}</li>
+  {% empty %}
+    <li>Нет тестов.</li>
+  {% endfor %}
+</ul>
+
+<!-- 🔘 Форма добавления теста -->
+<form method="post" action="/projects/{{ project.id }}/add_test/" class="form-card" style="margin-top: 15px;">
+  {% csrf_token %}
+  <div class="form-group">
+    <label>Описание:</label>
+    <input type="text" name="description" class="form-input" required>
+  </div>
+  <div class="form-group">
+    <label>Статус:</label>
+    <select name="status" class="form-input">
+      <option value="passed">✅ Пройден</option>
+      <option value="failed">❌ Провален</option>
+    </select>
+  </div>
+  <button type="submit" class="form-button">➕ Добавить тест</button>
+</form>
+
+<hr style="margin: 30px 0;">
+
+<!-- 🔹 Блок ответственных -->
+<h3>👤 Ответственные:</h3>
+<ul>
+  {% for person in responsible %}
+    <li>{{ person.full_name }} ({{ person.role }})</li>
+  {% empty %}
+    <li>Нет назначенных пользователей.</li>
+  {% endfor %}
+</ul>
+
+<!-- 🔘 Форма назначения -->
+<form method="post" action="/projects/{{ project.id }}/assign_user/" class="form-card" style="margin-top: 15px;">
+  {% csrf_token %}
+  <div class="form-group">
+    <label>Выберите пользователя:</label>
+    <select name="user_id" class="form-input">
+      {% for user in available_users %}
+        <option value="{{ user.id }}">{{ user.full_name }} ({{ user.role }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="form-button">➕ Назначить</button>
+</form>
+
+<!-- 🔘 Управление -->
+{% if role == "admin" or role == "manager" %}
+  <div style="display: flex; gap: 10px; margin-top: 30px;">
+    <a href="/projects/edit/{{ project.id }}/" class="form-button">✏️ Редактировать</a>
+    <a href="/projects/delete/{{ project.id }}/" class="nav-button danger" onclick="return confirm('Удалить проект?');">🗑️ Удалить</a>
+  </div>
+{% endif %}
+
+<a href="/projects/" class="nav-button" style="margin-top: 20px;">← Назад к списку проектов</a>
+{% endblock %}

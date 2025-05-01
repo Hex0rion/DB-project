@@ -1,0 +1,73 @@
+{% extends "core/base.html" %}
+{% block title %}Пользователи{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 20px;">👥 Пользователи</h2>
+
+<!-- 🔍 Поиск и фильтр -->
+<form method="get" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+  <input type="text" name="search" placeholder="Поиск по логину" value="{{ search }}" class="form-input" style="width: 200px;">
+  
+  <select name="role" class="form-input" style="width: 180px;">
+    <option value="">-- Все роли --</option>
+    <option value="admin" {% if role_filter == "admin" %}selected{% endif %}>Админ</option>
+    <option value="manager" {% if role_filter == "manager" %}selected{% endif %}>Менеджер</option>
+    <option value="dev" {% if role_filter == "dev" %}selected{% endif %}>Разработчик</option>
+    <option value="tester" {% if role_filter == "tester" %}selected{% endif %}>Тестировщик</option>
+    <option value="guest" {% if role_filter == "guest" %}selected{% endif %}>Гость</option>
+  </select>
+
+  <button type="submit" class="form-button">🔍 Найти</button>
+  <a href="/users/" class="nav-button">Сброс</a>
+  <a href="/users/create/" class="nav-button">➕ Создать пользователя</a>
+</form>
+
+<!-- 📋 Таблица пользователей -->
+<div style="overflow-x: auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>ФИО</th>
+        <th>Логин</th>
+        <th>Роль</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.full_name }}</td>
+        <td>{{ user.login }}</td>
+        <td>
+          {{ user.role }}
+          {% if user.role == 'pending' and user.desired_role %}
+            <div style="color: darkorange; font-size: 0.9em; margin-top: 4px;">
+              Ожидает: <strong>{{ user.desired_role }}</strong>
+            </div>
+          {% endif %}
+        </td>
+        <td style="white-space: nowrap;">
+          <a href="/users/edit/{{ user.id }}/" class="nav-button">✏️</a>
+          <a href="/users/delete/{{ user.id }}/" class="nav-button danger" onclick="return confirm('Удалить пользователя?');">🗑️</a>
+          {% if user.role == 'pending' and user.desired_role %}
+            <a href="/users/approve/{{ user.id }}/" class="nav-button" style="background-color: #e7fbe8; border-color: #60c267; color: #1a7f37;">✅</a>
+            <a href="/users/reject/{{ user.id }}/" class="nav-button danger">❌</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5" style="text-align: center; color: #888;">Нет пользователей.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 🔙 Назад -->
+<div style="margin-top: 20px;">
+  <a href="/" class="nav-button">← На главную</a>
+</div>
+{% endblock %}

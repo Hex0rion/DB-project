@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<h2>📝 Регистрация</h2>
+
+{% if messages %}
+  <div>
+    {% for message in messages %}
+      <div class="message {% if message.level_tag == 'error' %}message-error{% else %}message-info{% endif %} fade-out">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="post" class="form-card" style="max-width: 500px; margin: 0 auto;">
+  {% csrf_token %}
+
+  <div class="form-group">
+    <label for="full_name">ФИО:</label>
+    <input type="text" name="full_name" id="full_name" class="form-input" value="{{ full_name|default:'' }}" required>
+  </div>
+
+  <div class="form-group">
+    <label for="username">Логин:</label>
+    <input type="text" name="username" id="username" class="form-input" value="{{ username|default:'' }}" required>
+  </div>
+
+  <div class="form-group">
+    <label for="email">Email:</label>
+    <input type="email" name="email" id="email" class="form-input" value="{{ email|default:'' }}" required>
+  </div>
+
+  <div class="form-group">
+    <label for="password">Пароль:</label>
+    <input type="password" name="password" id="password" class="form-input" required>
+  </div>
+
+  <div class="form-group">
+    <label for="password2">Подтвердите пароль:</label>
+    <input type="password" name="password2" id="password2" class="form-input" required>
+  </div>
+
+  <div class="form-group">
+    <label for="desired_role">Желаемая роль:</label>
+    <select name="desired_role" id="desired_role" class="form-input" required>
+      <option value="guest" {% if desired_role == "guest" or not desired_role %}selected{% endif %}>Гость</option>
+      <option value="admin" {% if desired_role == "admin" %}selected{% endif %}>Администратор</option>
+      <option value="manager" {% if desired_role == "manager" %}selected{% endif %}>Менеджер</option>
+      <option value="dev" {% if desired_role == "dev" %}selected{% endif %}>Разработчик</option>
+      <option value="tester" {% if desired_role == "tester" %}selected{% endif %}>Тестировщик</option>
+    </select>
+  </div>
+
+  <button type="submit" class="form-button">✅ Зарегистрироваться</button>
+</form>
+
+<div style="margin-top: 20px; text-align: center;">
+  <a href="/login/" class="nav-button">← Уже есть аккаунт? Войти</a>
+</div>
+{% endblock %}
