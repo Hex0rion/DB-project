@@ -1,17 +1,15 @@
 import os
 import re
-from datetime import datetime, date
+from datetime import date, datetime
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import connection
-from django.http import HttpResponseForbidden, HttpResponseNotFound, Http404
-from django.shortcuts import render, redirect, get_object_or_404
+from django.http import Http404, HttpResponseForbidden, HttpResponseNotFound
+from django.shortcuts import get_object_or_404, redirect, render
 
-from core.models import User, Project, DevFile, Task
+from core.models import DevFile, Project, Task, User
 from .forms import DevFileForm
 
 # === Аутентификация и авторизация ===
@@ -104,7 +102,6 @@ def register_view(request):
         return redirect('/login/')
 
     return render(request, 'core/register.html')
-
 
 # === Управление пользователями ===
 def approve_user_view(request, user_id):
@@ -277,12 +274,22 @@ def home_view(request):
 
 # === Проекты ===
 def project_list_view(request):
+    user_id = request.session.get('user_id')
     user_role = request.session.get('user_role')
-    if not user_role:
+
+    if not user_id or not user_role:
         return redirect('/login/')
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, name, start_date, end_date, status FROM projects")
+        if user_role == 'admin':
+            cursor.execute("SELECT id, name, start_date, end_date, status FROM projects")
+        else:
+            cursor.execute("""
+                SELECT p.id, p.name, p.start_date, p.end_date, p.status
+                FROM projects p
+                JOIN assignments a ON a.project_id = p.id
+                WHERE a.user_id = %s
+            """, [user_id])
         rows = cursor.fetchall()
 
     now = date.today()
@@ -291,7 +298,6 @@ def project_list_view(request):
     for row in rows:
         id, name, start_date, end_date, status = row
 
-        # Преобразуем datetime → date, если необходимо
         if isinstance(start_date, datetime):
             start_date = start_date.date()
         if isinstance(end_date, datetime):
@@ -494,7 +500,6 @@ def project_delete_view(request, project_id):
     messages.success(request, "Проект и все связанные с ним данные успешно удалены.")
     return redirect('/projects/')
 
-
 def project_detail_view(request, project_id):
     user_role = request.session.get('user_role')
     user_id = request.session.get('user_id')
@@ -518,24 +523,22 @@ def project_detail_view(request, project_id):
             'status': row[4],
         }
 
-        # Проверка прав: admin или manager проекта
+        # Проверка: является ли пользователь менеджером этого проекта
         user_is_manager = False
-        if user_role == 'admin':
+        cursor.execute("""
+            SELECT 1
+            FROM assignments
+            WHERE project_id = %s AND user_id = %s AND role = 'manager'
+        """, [project_id, user_id])
+        if cursor.fetchone() or user_role == 'admin':
             user_is_manager = True
-        elif user_role == 'manager':
-            cursor.execute("""
-                SELECT u.id, u.full_name, u.role
-                FROM users u
-                WHERE u.role IN ('admin', 'manager', 'dev', 'tester')
-                AND NOT EXISTS (
-                    SELECT 1 FROM assignments a
-                    WHERE a.project_id = %s AND a.user_id = u.id
-                )
-            """, [project_id])
-            user_is_manager = cursor.fetchone()[0] > 0
 
-        # Обработка POST-запроса: назначение/удаление
-        if request.method == 'POST' and user_is_manager:
+        # 🔐 Вычисляем доступы
+        can_assign_users = user_role == 'admin' or (user_role == 'manager' and user_is_manager)
+        can_add_tests = user_role in ['admin', 'manager', 'tester']
+
+        # Обработка POST-запроса: назначение/удаление пользователей
+        if request.method == 'POST' and can_assign_users:
             remove_user_id = request.POST.get('remove_user_id')
             if remove_user_id:
                 cursor.execute("""
@@ -558,7 +561,7 @@ def project_detail_view(request, project_id):
                     """, [project_id, target_user_id, assign_role])
                 return redirect(f"/projects/{project_id}/")
 
-        # Получение последних версий файлов
+        # Получение файлов проекта
         cursor.execute("""
             SELECT f1.file_name, f1.file_path, f1.uploaded_at, u.full_name
             FROM dev_files f1
@@ -586,7 +589,7 @@ def project_detail_view(request, project_id):
         """, [project_id])
         tests = dictfetchall(cursor)
 
-        # Получение назначенных пользователей
+        # Назначенные пользователи
         cursor.execute("""
             SELECT u.id, u.full_name, a.role
             FROM assignments a
@@ -601,23 +604,22 @@ def project_detail_view(request, project_id):
             'tester': [],
         }
 
-        for user_id, full_name, role in assigned_raw:
+        for user_id_, full_name, role in assigned_raw:
             if role in responsible_by_role:
                 responsible_by_role[role].append({
-                    'id': user_id,
+                    'id': user_id_,
                     'full_name': full_name,
                     'role': role,
                     'role_display': role_display(role),
                 })
 
-        # Укомплектованность по ролям
         staff_fulfilled = {
             'manager': len(responsible_by_role['manager']) > 0,
             'dev': len(responsible_by_role['dev']) > 0,
             'tester': len(responsible_by_role['tester']) > 0,
         }
 
-        # Доступные пользователи
+        # Свободные пользователи
         cursor.execute("""
             SELECT u.id, u.full_name, u.role, u.login
             FROM users u
@@ -659,10 +661,12 @@ def project_detail_view(request, project_id):
             for r in assigned_raw
         ],
         'staff_fulfilled': staff_fulfilled,
-        'assigned_counts': assigned_counts, 
+        'assigned_counts': assigned_counts,
         'available_users': available_users,
         'role': user_role,
         'user_is_manager': user_is_manager,
+        'can_assign_users': can_assign_users,
+        'can_add_tests': can_add_tests,
         'roles': ['manager', 'dev', 'tester'],
     })
 
@@ -728,7 +732,15 @@ def assignment_list_view(request):
 
     with connection.cursor() as cursor:
         # все проекты
-        cursor.execute("SELECT id, name, start_date, end_date FROM projects")
+        if user_role == 'admin':
+            cursor.execute("SELECT id, name, start_date, end_date FROM projects")
+        else:
+            cursor.execute("""
+                SELECT p.id, p.name, p.start_date, p.end_date
+                FROM projects p
+                JOIN assignments a ON a.project_id = p.id
+                WHERE a.user_id = %s AND a.role = 'manager'
+            """, [user_id])
         project_rows = cursor.fetchall()
 
         projects = []
@@ -821,21 +833,43 @@ def assignment_list_view(request):
 
 # === Файлы ===
 def file_list_view(request):
+    user_id = request.session.get('user_id')
+    user_role = request.session.get('user_role')
+
     project_id = request.GET.get('project_id')
     author_id = request.GET.get('author_id')
 
-    query = "SELECT id, project_id, author_id, file_name, file_path, uploaded_at FROM dev_files WHERE 1=1"
+    base_query = """
+        SELECT f.id, f.project_id, f.author_id, f.file_name, f.file_path, f.uploaded_at
+        FROM dev_files f
+    """
+    where_clauses = []
     params = []
 
+    # 👇 Ограничения по роли
+    if user_role == 'admin':
+        where_clauses.append("1=1")
+    elif user_role == 'manager':
+        base_query += """
+            JOIN assignments a ON a.project_id = f.project_id
+        """
+        where_clauses.append("a.user_id = %s AND a.role = 'manager'")
+        params.append(user_id)
+    else:
+        return HttpResponseForbidden("Недостаточно прав")
+
+    # 👇 Фильтры из формы
     if project_id:
-        query += " AND project_id = %s"
+        where_clauses.append("f.project_id = %s")
         params.append(project_id)
     if author_id:
-        query += " AND author_id = %s"
+        where_clauses.append("f.author_id = %s")
         params.append(author_id)
 
+    final_query = base_query + " WHERE " + " AND ".join(where_clauses) + " ORDER BY f.uploaded_at DESC"
+
     with connection.cursor() as cursor:
-        cursor.execute(query, params)
+        cursor.execute(final_query, params)
         rows = cursor.fetchall()
 
     files = [
@@ -1124,36 +1158,54 @@ def project_sync_files_view(request, project_id):
 
 # === Тесты ===
 def testresult_list_view(request):
+    user_id = request.session.get('user_id')
     user_role = request.session.get('user_role')
+
     if not user_role:
         return redirect('/login/')
 
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT t.id, p.name AS project_name, t.test_type, t.description, t.status,
-                t.tested_at, u.full_name AS tester_name
-            FROM tests t
-            LEFT JOIN projects p ON t.project_id = p.id
-            LEFT JOIN users u ON t.tester_id = u.id
-            ORDER BY t.tested_at DESC
-        """)
+        if user_role == 'admin':
+            cursor.execute("""
+                SELECT t.id, p.name AS project_name, t.test_type, t.description, t.status,
+                       t.tested_at, u.full_name AS tester_name
+                FROM tests t
+                LEFT JOIN projects p ON t.project_id = p.id
+                LEFT JOIN users u ON t.tester_id = u.id
+                ORDER BY t.tested_at DESC
+            """)
+        elif user_role == 'manager':
+            cursor.execute("""
+                SELECT t.id, p.name AS project_name, t.test_type, t.description, t.status,
+                       t.tested_at, u.full_name AS tester_name
+                FROM tests t
+                JOIN projects p ON t.project_id = p.id
+                JOIN assignments a ON a.project_id = p.id
+                LEFT JOIN users u ON t.tester_id = u.id
+                WHERE a.user_id = %s AND a.role = 'manager'
+                ORDER BY t.tested_at DESC
+            """, [user_id])
+        else:
+            return HttpResponseForbidden("Недостаточно прав")
 
         rows = cursor.fetchall()
 
     test_results = [
-    {
-        'id': r[0],
-        'project_name': r[1],
-        'test_type': r[2],
-        'description': r[3],
-        'status': r[4],
-        'tested_at': r[5],
-        'tester': r[6] or '—',
-    }
-    for r in rows
+        {
+            'id': r[0],
+            'project_name': r[1],
+            'test_type': r[2],
+            'description': r[3],
+            'status': r[4],
+            'tested_at': r[5],
+            'tester': r[6] or '—',
+        }
+        for r in rows
     ]
 
-    return render(request, 'core/tests.html', {'test_results': test_results})
+    return render(request, 'core/tests.html', {
+        'test_results': test_results
+    })
 
 def project_add_test_view(request, project_id):
     if request.method == 'POST':
@@ -1346,3 +1398,18 @@ def role_display(role):
         'dev': 'Разработчик',
         'tester': 'Тестировщик',
     }.get(role, role)
+
+def is_guest(user):
+    return user.role == 'guest'
+
+def is_dev_or_test(user):
+    return user.role in ['developer', 'tester']
+
+def is_manager(user):
+    return user.role == 'manager'
+
+def is_admin(user):
+    return user.role == 'admin'
+
+def is_staff(user):
+    return user.role in ['developer', 'tester', 'manager']

@@ -3,6 +3,16 @@
 {% block title %}Проект {{ project.name }}{% endblock %}
 
 {% block content %}
+{% if messages %}
+  <div>
+    {% for message in messages %}
+      <div class="message {% if message.level_tag == 'error' %}message-error{% else %}message-info{% endif %} fade-out">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
 <h2 style="margin-bottom: 20px;">📁 Проект: <strong>{{ project.name }}</strong></h2>
 
 <div class="form-card" style="max-width: 500px; margin-bottom: 30px;">
@@ -51,6 +61,7 @@
 </table>
 
 <!-- 🔘 Форма загрузки -->
+{% if role in "admin manager dev" %}
 <form method="post" action="/projects/{{ project.id }}/commit_upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 20px;">
   {% csrf_token %}
   <input type="hidden" name="project_id" value="{{ project.id }}">
@@ -70,6 +81,7 @@
 
   <button type="submit" class="form-button">➕ Загрузить</button>
 </form>
+{% endif %}
 
 <hr style="margin: 30px 0;">
 
@@ -127,6 +139,7 @@
 </ul>
 
 <!-- 🔘 Форма добавления теста -->
+{% if can_add_tests %}
 <form method="post" action="{% url 'project_tests_add' project.id %}" class="form-card" style="margin-top: 20px;">
   {% csrf_token %}
   <div class="form-group">
@@ -152,7 +165,7 @@
 
   <button type="submit" class="form-button">➕ Добавить тест</button>
 </form>
-
+{% endif %}
 
 <hr style="margin: 30px 0;">
 <div style="margin-bottom: 15px;">
@@ -197,6 +210,7 @@
 <hr>
 
 <!-- 🔹 Свободные пользователи -->
+{% if can_assign_users %}
 <h4>Свободные пользователи:</h4>
 {% if available_users %}
   <input type="text" id="userSearch" class="form-input" placeholder="Поиск по имени, логину, ID">
@@ -227,6 +241,7 @@
   </form>
 {% else %}
   <p>Нет доступных пользователей.</p>
+{% endif %}
 {% endif %}
 
 <!-- ✅ Стили и скрипт -->
