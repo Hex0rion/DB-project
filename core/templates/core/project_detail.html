@@ -179,7 +179,7 @@
 
     <div id="userList">
       {% for user in available_users %}
-        <div class="user-block user-item" data-search="{{ user.full_name|lower }} {{ user.role|lower }} {{ user.id }}">
+        <div class="user-block user-item" data-search="{{ user.full_name|lower }} {{ user.role|lower }} {{ user.id }} {{ user.login|lower }}">
           <span>{{ user.full_name }} ({{ user.role_display }})</span>
           <span>
             {% if user.role == 'dev' or user.role == 'manager' or user.role == 'admin' %}

@@ -609,16 +609,23 @@ def project_detail_view(request, project_id):
 
         # Доступные пользователи
         cursor.execute("""
-            SELECT u.id, u.full_name, u.role
+            SELECT u.id, u.full_name, u.role, u.login
             FROM users u
-            WHERE u.role IN ('admin', 'manager', 'dev', 'tester')
+            WHERE u.role IN ('manager', 'dev', 'tester', 'admin')
             AND NOT EXISTS (
                 SELECT 1 FROM assignments a
                 WHERE a.project_id = %s AND a.user_id = u.id
             )
         """, [project_id])
+
         available_users = [
-            {'id': r[0], 'full_name': r[1], 'role': r[2], 'role_display': role_display(r[2])}
+            {
+                'id': r[0],
+                'full_name': r[1],
+                'role': r[2],
+                'login': r[3],
+                'role_display': role_display(r[2])
+            }
             for r in cursor.fetchall()
         ]
 
@@ -776,7 +783,7 @@ def assignment_list_view(request):
 
                 # Свободные пользователи
                 cursor.execute("""
-                    SELECT u.id, u.full_name, u.role
+                    SELECT u.id, u.full_name, u.login, u.role
                     FROM users u
                     WHERE u.role IN ('admin', 'manager', 'tester', 'dev')
                     AND NOT EXISTS (
@@ -788,8 +795,9 @@ def assignment_list_view(request):
                     {
                         'id': row[0],
                         'full_name': row[1],
-                        'role': row[2],
-                        'role_display': role_display(row[2])
+                        'login': row[2], 
+                        'role': row[3],
+                        'role_display': role_display(row[3])
                     }
                     for row in cursor.fetchall()
                 ]

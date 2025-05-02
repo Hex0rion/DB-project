@@ -13,7 +13,8 @@
   align-items: flex-start;
 }
 .project-card {
-  width: 250px;
+  flex: 1 1 300px;
+  max-width: 100%;
   padding: 15px;
   border-radius: 12px;
   border: 2px solid #ccc;
@@ -37,7 +38,8 @@
 }
 .role-status {
   display: flex;
-  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-top: 10px;
 }
 .role-badge {
@@ -143,7 +145,7 @@ input#userSearch {
 
           <div id="userList">
             {% for user in available %}
-              <div class="user-block user-item" data-search="{{ user.full_name|lower }} {{ user.role|lower }} {{ user.id }}">
+              <div class="user-block user-item" data-search="{{ user.full_name|lower }} {{ user.login|lower }} {{ user.role|lower }} {{ user.id }}">
                 <span>{{ user.full_name }} ({{ user.role_display }})</span>
                 <span>
                     {% if user.role == 'dev' or user.role == 'manager' or user.role == 'admin' %}
