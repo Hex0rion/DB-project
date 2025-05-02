@@ -477,14 +477,23 @@ def project_delete_view(request, project_id):
         return HttpResponseForbidden("Доступ запрещён")
 
     with connection.cursor() as cursor:
+        # Проверка существования проекта
         cursor.execute("SELECT id FROM projects WHERE id = %s", [project_id])
         if not cursor.fetchone():
             return HttpResponseNotFound("Проект не найден")
 
+        # Удаление связанных записей (в нужном порядке)
+        cursor.execute("DELETE FROM dev_files WHERE project_id = %s", [project_id])
+        cursor.execute("DELETE FROM commits WHERE project_id = %s", [project_id])
+        cursor.execute("DELETE FROM tests WHERE project_id = %s", [project_id])
+        cursor.execute("DELETE FROM assignments WHERE project_id = %s", [project_id])
+
+        # Удаление самого проекта
         cursor.execute("DELETE FROM projects WHERE id = %s", [project_id])
 
-    messages.success(request, "Проект удалён.")
+    messages.success(request, "Проект и все связанные с ним данные успешно удалены.")
     return redirect('/projects/')
+
 
 def project_detail_view(request, project_id):
     user_role = request.session.get('user_role')

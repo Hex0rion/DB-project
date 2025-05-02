@@ -3,6 +3,23 @@
 {% block title %}Список проектов{% endblock %}
 
 {% block content %}
+
+<!-- ✅ Блок уведомлений -->
+{% if messages %}
+  <div id="message-container" class="alert-box">
+    {% for message in messages %}
+      <div class="alert-message">{{ message }}</div>
+    {% endfor %}
+  </div>
+  <script>
+    setTimeout(() => {
+      const box = document.getElementById('message-container');
+      if (box) box.style.display = 'none';
+    }, 4000);
+  </script>
+{% endif %}
+
+
 <h2>📁 Список проектов</h2>
 
 {% if role == "admin" or role == "manager" %}
@@ -59,3 +76,18 @@
   <a href="/" class="nav-button">← На главную</a>
 </div>
 {% endblock %}
+
+<style>
+  .alert-box {
+    margin-bottom: 20px;
+    padding: 10px 20px;
+    background-color: #e6f0ff;
+    border: 1px solid #99ccff;
+    border-radius: 5px;
+    font-weight: 500;
+  }
+
+  .alert-message {
+    color: #1a3d7c;
+  }
+</style>
