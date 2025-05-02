@@ -1,36 +1,77 @@
 {% extends "core/base.html" %}
-
-{% block title %}Результаты тестирования{% endblock %}
+{% block title %}Результаты тестирования задач{% endblock %}
 
 {% block content %}
 <h2>🧪 Результаты тестирования задач</h2>
 
-<div style="overflow-x: auto;">
-  <table>
-    <thead>
-      <tr>
-        <th>ID Теста</th>
-        <th>ID Задачи</th>
-        <th>Результат теста</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for test in test_results %}
-        <tr>
-          <td>{{ test.id }}</td>
-          <td>{{ test.task_id }}</td>
-          <td>{{ test.result }}</td>
-        </tr>
-      {% empty %}
-        <tr>
-          <td colspan="3" style="text-align: center; color: #888;">Нет результатов тестирования.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<table class="form-card" style="width: 100%; margin-top: 20px;">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Проект</th>
+      <th>Тип</th>
+      <th>Описание</th>
+      <th>Статус</th>
+      <th>Дата</th>
+      <th>Тестировщик</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for test in test_results %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ test.project_name }}</td>
+      <td>{{ test.test_type }}</td>
+      <td>{{ test.description }}</td>
+      <td>
+        <span class="badge 
+          {% if test.status == 'пройден' %}badge-passed
+          {% elif test.status == 'провален' %}badge-failed
+          {% elif test.status == 'пропущен' %}badge-skipped
+          {% else %}badge-neutral
+          {% endif %}">
+          {{ test.status|default:"не начат" }}
+        </span>
+      </td>
+      <td>{{ test.tested_at|date:"d.m.Y H:i" }}</td>
+      <td>{{ test.tester }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">Нет результатов тестирования.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 
-<div style="margin-top: 20px;">
-  <a href="/" class="nav-button">← На главную</a>
-</div>
+<a href="/" class="form-button" style="margin-top: 20px;">← На главную</a>
+
+<style>
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    border: 1px solid #999;
+  }
+  .badge-passed {
+    background-color: #e6f0ff;
+    color: #0b63c5;
+    border: 1px solid #0b63c5;
+  }
+  .badge-failed {
+    background-color: #ffe6e6;
+    color: #c10000;
+    border: 1px solid #c10000;
+  }
+  .badge-skipped {
+    background-color: #f2f2f2;
+    color: #666;
+    border: 1px solid #aaa;
+  }
+  .badge-neutral {
+    background-color: #eee;
+    color: #999;
+    border: 1px solid #ccc;
+  }
+</style>
 {% endblock %}

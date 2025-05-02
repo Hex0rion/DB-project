@@ -1,0 +1,82 @@
+{% extends "core/base.html" %}
+{% block title %}Проект — {{ project_name }} — {{ test_name }}{% endblock %}
+
+{% block content %}
+<h2>🧪 Проект — <strong>{{ project_name }}</strong> — <strong>{{ test_name }}</strong></h2>
+
+<div class="form-card" style="margin-bottom: 20px;">
+  <p><strong>{{ test_name }}</strong> — {{ test_description }}</p>
+  {% if tested_at %}
+    <p>Прошел: {{ tested_at|date:"d.m.Y H:i" }}</p>
+  {% endif %}
+
+  {% if can_send_files %}
+    <div style="margin-top: 10px; margin-bottom: 20px;">
+      <form method="post" action="/projects/{{ project_id }}/tests/{{ test_id }}/send_files/">
+        {% csrf_token %}
+        <strong>Файлы для отправки:</strong><br>
+        {% for file in file_list %}
+          <label><input type="checkbox" name="files" value="{{ file }}"> {{ file }}</label><br>
+        {% empty %}
+          <p><em>Нет доступных файлов.</em></p>
+        {% endfor %}
+        <button type="submit" class="form-button" style="margin-top: 10px;">📤 Отправить файлы</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+<!-- 🔘 Блок кнопок изменения статуса -->
+{% if can_mark_passed %}
+  <div class="form-card" style="margin-bottom: 20px;">
+    <form method="post" action="/projects/{{ project_id }}/tests/{{ test_id }}/mark_status/пропущен/" style="display: inline;">{% csrf_token %}
+      <button type="submit" class="status-btn skipped">Пропущен</button>
+    </form>
+    <form method="post" action="/projects/{{ project_id }}/tests/{{ test_id }}/mark_status/пройден/" style="display: inline;">{% csrf_token %}
+      <button type="submit" class="status-btn passed">Пройден</button>
+    </form>
+    <form method="post" action="/projects/{{ project_id }}/tests/{{ test_id }}/mark_status/провален/" style="display: inline;">{% csrf_token %}
+      <button type="submit" class="status-btn failed">Провален</button>
+    </form>
+  </div>
+{% endif %}
+
+<a href="/projects/{{ project_id }}/" class="form-button">← Назад к проекту</a>
+{% endblock %}
+
+<!-- ✅ Стили для кнопок -->
+<style>
+.status-btn {
+  font-size: 14px;
+  padding: 6px 14px;
+  margin-right: 6px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+}
+
+.status-btn.skipped {
+  color: #666;
+  border-color: #aaa;
+  background-color: #f2f2f2;
+}
+.status-btn.passed {
+  color: #0b63c5;
+  border-color: #0b63c5;
+  background-color: #e6f0ff;
+}
+.status-btn.failed { 
+  color: #c10000;
+  border-color: #c10000;
+  background-color: #ffe6e6;
+}
+.status-btn.skipped:hover {
+  background-color: #e0e0e0;
+}
+.status-btn.passed:hover {
+  background-color: #d6e9ff;
+}
+.status-btn.failed:hover {
+  background-color: #ffcccc;
+}
+</style>

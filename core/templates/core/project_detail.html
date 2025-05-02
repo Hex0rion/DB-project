@@ -77,35 +77,87 @@
 <h3>🧪 Тесты:</h3>
 <ul>
   {% for test in tests %}
-    <li>Тест #{{ test.id }} — статус: {{ test.status }}</li>
-  {% empty %}
-    <li>Нет тестов.</li>
+  <li style="margin-bottom: 25px;" class="form-card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <strong>{{ test.test_type }}</strong>
+        {% if test.description %} — {{ test.description }}{% endif %}
+        {% if test.tested_at %}
+          <div style="font-size: 0.9em; color: #666;">Прошел: {{ test.tested_at|date:"d.m.Y H:i" }}</div>
+        {% endif %}
+      </div>
+      <span class="badge 
+        {% if test.status == 'пройден' %}badge-passed
+        {% elif test.status == 'провален' %}badge-failed
+        {% elif test.status == 'пропущен' %}badge-skipped
+        {% else %}badge-neutral
+        {% endif %}">
+        {{ test.status|default:"не начат" }}
+      </span>
+    </div>
+  
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 12px;">
+      {% if role in "admin manager dev" %}
+        <form method="post" action="{% url 'project_tests_send_files' project.id test.id %}">
+          {% csrf_token %}
+          <button type="submit" class="form-button">📤 Отправить на проверку</button>
+        </form>
+      {% endif %}
+
+      {% if role in "admin manager tester" %}
+        <div style="display: flex; gap: 6px; margin-left: 20px;">
+          <form method="post" action="{% url 'project_tests_mark_status' project.id test.id 'пропущен' %}">
+            {% csrf_token %}
+            <button type="submit" class="badge-skipped">Пропущен</button>
+          </form>
+          <form method="post" action="{% url 'project_tests_mark_status' project.id test.id 'пройден' %}">
+            {% csrf_token %}
+            <button type="submit" class="badge-passed">Пройден</button>
+          </form>
+          <form method="post" action="{% url 'project_tests_mark_status' project.id test.id 'провален' %}">
+            {% csrf_token %}
+            <button type="submit" class="badge-failed">Провален</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </li>
+  
   {% endfor %}
 </ul>
 
 <!-- 🔘 Форма добавления теста -->
-<form method="post" action="/projects/{{ project.id }}/commit_upload/" enctype="multipart/form-data" class="form-card" style="margin-top: 20px;">
+<form method="post" action="{% url 'project_tests_add' project.id %}" class="form-card" style="margin-top: 20px;">
   {% csrf_token %}
-  <input type="hidden" name="project_id" value="{{ project.id }}">
-
   <div class="form-group">
-    <label>Имя файла:</label>
-    <input type="text" name="file_name" class="form-input" required>
+    <label>Тип теста:</label>
+    <select name="test_type" id="testTypeSelect" class="form-input" onchange="handleTestTypeChange(this)">
+      <option value="Unit-тест">Unit-тест</option>
+      <option value="UI-тест">UI-тест</option>
+      <option value="Интеграционный тест">Интеграционный тест</option>
+      <option value="Нагрузочный тест">Нагрузочный тест</option>
+      <option value="Безопасность">Тест безопасности</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="customTypeWrapper" style="display: none;">
+    <label>Уточните тип:</label>
+    <input type="text" name="test_type_custom" class="form-input">
   </div>
 
   <div class="form-group">
-    <label>Файл:</label>
-    <div class="dropzone-wrapper" id="dropzone">
-      📁 <strong>Перетащите файл сюда</strong> или <span class="fake-button">нажмите для выбора</span>
-      <input type="file" name="file" id="file-input" required>
-    </div>
+    <label>Описание:</label>
+    <textarea name="description" class="form-input" rows="3" required></textarea>
   </div>
 
-  <button type="submit" class="form-button">➕ Загрузить</button>
+  <button type="submit" class="form-button">➕ Добавить тест</button>
 </form>
+
 
 <hr style="margin: 30px 0;">
 <div style="margin-bottom: 15px;">
+
+
   <!-- ✅ Индикатор укомплектованности в виде бейджей -->
 <div style="margin-bottom: 15px;">
   <strong>Укомплектованность:</strong>
@@ -122,29 +174,6 @@
     Менеджер ({{ assigned_counts.manager }})
   </span>
 </div>
-
-
-<!-- ✅ Индикатор укомплектованности в виде бейджей -->
-<style>
-  .badge {
-    display: inline-block;
-    padding: 4px 10px;
-    margin-right: 5px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 13px;
-    border: 1px solid #999;
-  }
-  .badge-filled {
-    background-color: #e3f2fd;
-    color: #1976d2;
-    border-color: #2196f3;
-  }
-  .badge-empty {
-    background-color: #eee;
-    color: #888;
-  }
-</style>
 
 <!-- 🔹 Блок ответственных -->
 <h4><strong>Уже назначены:</strong></h4>
@@ -202,6 +231,88 @@
 
 <!-- ✅ Стили и скрипт -->
 <style>
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    margin-right: 5px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    border: 1px solid #999;
+  }
+  .badge-filled {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    border-color: #2196f3;
+  }
+  .badge-empty {
+    background-color: #eee;
+    color: #888;
+  }
+  .badge-passed {
+    background-color: #e6f0ff;
+    color: #0b63c5;
+    border: 1px solid #0b63c5;
+  }
+
+  .badge-failed {
+    background-color: #ffe6e6;
+    color: #c10000;
+    border: 1px solid #c10000;
+  }
+
+  .badge-skipped {
+    background-color: #f2f2f2;
+    color: #666;
+    border: 1px solid #aaa;
+  }
+
+  button.badge-passed,
+  button.badge-failed,
+  button.badge-skipped {
+      font-size: 0.85em;
+      padding: 4px 10px;
+      border-radius: 5px;
+      margin-left: 4px;
+      cursor: pointer;
+      background-color: transparent;
+    }
+    button.badge-passed {
+    color: #0b63c5;
+    border: 1px solid #0b63c5;
+    background-color: #e6f0ff;
+  }
+
+  button.badge-failed {
+    color: #c10000;
+    border: 1px solid #c10000;
+    background-color: #ffe6e6;
+  }
+
+  button.badge-skipped {
+    color: #666;
+    border: 1px solid #aaa;
+    background-color: #f2f2f2;
+  }
+
+  button.badge-passed:hover {
+    background-color: #d4e7ff;
+  }
+
+  button.badge-failed:hover {
+    background-color: #ffcccc;
+  }
+
+  button.badge-skipped:hover {
+    background-color: #e6e6e6;
+  }
+  
+  .badge-neutral {
+    background-color: #eee;
+    color: #999;
+    border: 1px solid #ccc;
+  }
+
   .user-block {
     display: flex;
     justify-content: space-between;
@@ -316,3 +427,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   </style>
   
+  <script>
+    function handleTestTypeChange(select) {
+      const customInput = document.getElementById('customTypeWrapper');
+      if (select.value === 'other') {
+        customInput.style.display = 'block';
+      } else {
+        customInput.style.display = 'none';
+      }
+    }
+    </script>
+    

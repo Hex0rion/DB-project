@@ -574,7 +574,7 @@ def project_detail_view(request, project_id):
             WHERE project_id = %s
             ORDER BY tested_at DESC
         """, [project_id])
-        tests = cursor.fetchall()
+        tests = dictfetchall(cursor)
 
         # Получение назначенных пользователей
         cursor.execute("""
@@ -980,7 +980,7 @@ def project_commits_view(request, project_id):
         query += " AND c.file_name = %s"
         params.append(file_filter)
 
-    query += " ORDER BY c.committed_at"
+    query += " ORDER BY c.committed_at DESC"
 
     with connection.cursor() as cursor:
         cursor.execute(query, params)
@@ -1119,32 +1119,209 @@ def testresult_list_view(request):
         return redirect('/login/')
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, task_id, status FROM test_results")
+        cursor.execute("""
+            SELECT t.id, p.name AS project_name, t.test_type, t.description, t.status,
+                t.tested_at, u.full_name AS tester_name
+            FROM tests t
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN users u ON t.tester_id = u.id
+            ORDER BY t.tested_at DESC
+        """)
+
         rows = cursor.fetchall()
 
-    test_results = [{'id': row[0], 'task_id': row[1], 'result': row[2]} for row in rows]
+    test_results = [
+    {
+        'id': r[0],
+        'project_name': r[1],
+        'test_type': r[2],
+        'description': r[3],
+        'status': r[4],
+        'tested_at': r[5],
+        'tester': r[6] or '—',
+    }
+    for r in rows
+    ]
 
     return render(request, 'core/tests.html', {'test_results': test_results})
 
 def project_add_test_view(request, project_id):
     if request.method == 'POST':
+        user_role = request.COOKIES.get('user_role')
+        if user_role not in ['admin', 'manager', 'tester']:
+            return HttpResponseForbidden("Недостаточно прав")
+
         description = request.POST.get('description', '').strip()
-        status = request.POST.get('status', '').strip()
+        status = request.POST.get('status', '').strip() or 'не начат'
         test_type = request.POST.get('test_type', '').strip()
+        if test_type == 'other':
+            test_type = request.POST.get('test_type_custom', '').strip()
+
         tester_id = request.COOKIES.get('user_id')
 
-        if not description or not status or not test_type:
+        if not description or not test_type:
             messages.error(request, "Все поля обязательны для заполнения.")
             return redirect(f'/projects/{project_id}/')
 
         with connection.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO tests (project_id, test_type, description, status, tester_id)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO tests (project_id, test_type, description, status, tester_id, tested_at)
+                VALUES (%s, %s, %s, %s, %s, NULL)
             """, [project_id, test_type, description, status, tester_id])
 
         messages.success(request, "Тест успешно добавлен.")
     return redirect(f'/projects/{project_id}/')
+
+def project_tests_view(request, project_id):
+    user_id = request.COOKIES.get("user_id")
+    user_role = request.COOKIES.get("user_role")
+    role_is_manager = False
+    role_is_tester = False
+    role_is_dev = False
+
+    with connection.cursor() as cursor:
+        # Получение названия проекта
+        cursor.execute("SELECT name FROM projects WHERE id = %s", [project_id])
+        row = cursor.fetchone()
+        if not row:
+            return HttpResponseNotFound("Проект не найден")
+        project_name = row[0]
+
+        # Определение роли пользователя
+        cursor.execute("""
+            SELECT role FROM assignments
+            WHERE project_id = %s AND user_id = %s
+        """, [project_id, user_id])
+        roles = [r[0] for r in cursor.fetchall()]
+        role_is_manager = 'manager' in roles or user_role == 'admin'
+        role_is_tester = 'tester' in roles or user_role == 'admin'
+        role_is_dev = 'dev' in roles or user_role == 'admin'
+
+        # Получение первого теста проекта (только один используется)
+        cursor.execute("""
+            SELECT id, test_type, description, status, tested_at, tester_id
+            FROM tests
+            WHERE project_id = %s
+            ORDER BY id ASC LIMIT 1
+        """, [project_id])
+        test = cursor.fetchone()
+
+        if not test:
+            test_data = {
+                'test_id': None,
+                'test_name': '',
+                'test_description': '',
+                'test_status': '',
+                'tested_at': None
+            }
+        else:
+            test_data = {
+                'test_id': test[0],
+                'test_name': test[1],
+                'test_description': test[2],
+                'test_status': test[3],
+                'tested_at': test[4]
+            }
+
+        # Получение списка файлов проекта
+        cursor.execute("""
+            SELECT file_name FROM dev_files
+            WHERE project_id = %s
+            ORDER BY uploaded_at DESC
+        """, [project_id])
+        file_list = [r[0] for r in cursor.fetchall()]
+
+    return render(request, "core/project_tests.html", {
+        'project_id': project_id,
+        'project_name': project_name,
+        'test_id': test_data['test_id'],
+        'test_name': test_data['test_name'],
+        'test_description': test_data['test_description'],
+        'test_status': test_data['test_status'],
+        'tested_at': test_data['tested_at'],
+        'file_list': file_list,
+        'can_add': role_is_manager,
+        'can_mark_passed': role_is_tester,
+        'can_send_files': role_is_dev,
+    })
+
+def project_tests_mark_passed_view(request, project_id, test_id):
+    user_id = request.COOKIES.get("user_id")
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT 1 FROM assignments
+            WHERE project_id = %s AND user_id = %s AND role = 'tester'
+        """, [project_id, user_id])
+        is_tester = cursor.fetchone() or request.COOKIES.get('user_role') == 'admin'
+
+        if not is_tester:
+            return HttpResponseForbidden("Недостаточно прав")
+
+        cursor.execute("""
+            UPDATE tests
+            SET status = 'пройден', tested_at = NOW()
+            WHERE id = %s AND project_id = %s
+        """, [test_id, project_id])
+
+    messages.success(request, "Тест отмечен как пройденный.")
+    return redirect(f"/projects/{project_id}/tests/")
+
+def project_tests_send_files_view(request, project_id, test_id):
+    if request.method != 'POST':
+        return HttpResponseForbidden("Только POST разрешен")
+
+    user_id = request.COOKIES.get("user_id")
+    role = request.COOKIES.get("user_role")
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT 1 FROM assignments
+            WHERE project_id = %s AND user_id = %s AND role = 'dev'
+        """, [project_id, user_id])
+        is_dev = cursor.fetchone() or role == 'admin'
+
+        if not is_dev:
+            return HttpResponseForbidden("Недостаточно прав")
+
+        # Просто обновляем статус теста, без коммитов
+        cursor.execute("""
+            UPDATE tests
+            SET status = 'на проверке', tested_at = NOW()
+            WHERE id = %s AND project_id = %s
+        """, [test_id, project_id])
+
+    messages.success(request, "Тест отправлен на проверку.")
+    return redirect(f"/projects/{project_id}/")
+
+def project_tests_mark_status_view(request, project_id, test_id, status):
+    if request.method != "POST":
+        return HttpResponseForbidden("Только POST разрешен")
+
+    user_id = request.COOKIES.get("user_id")
+    role = request.COOKIES.get("user_role")
+
+    if status not in ['пройден', 'провален', 'пропущен']:
+        return HttpResponseForbidden("Недопустимый статус")
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT 1 FROM assignments
+            WHERE project_id = %s AND user_id = %s AND role = 'tester'
+        """, [project_id, user_id])
+        is_tester = cursor.fetchone() or role in ['admin', 'manager']
+
+        if not is_tester:
+            return HttpResponseForbidden("Недостаточно прав")
+
+        cursor.execute("""
+            UPDATE tests
+            SET status = %s, tested_at = NOW()
+            WHERE id = %s AND project_id = %s
+        """, [status, test_id, project_id])
+
+    messages.success(request, f"Тест обновлён: {status}")
+    return redirect(f"/projects/{project_id}/")
 
 # === Утилиты ===
 def dictfetchall(cursor):

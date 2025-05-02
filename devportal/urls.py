@@ -14,8 +14,10 @@ from core.views import (
     project_commits_view, commit_detail_view, delete_file_view,
     assignment_list_view, file_list_view, testresult_list_view,
     file_upload_view, file_versions_view, upload_file,
-    assign_user, remove_user,
+    assign_user, remove_user, project_tests_send_files_view,
+    project_tests_mark_status_view
 )
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -67,6 +69,9 @@ urlpatterns = [
 
     # Тесты
     path('tests/', testresult_list_view, name='testresult_list'),
+    path('projects/<int:project_id>/tests/add/', project_add_test_view, name='project_tests_add'),
+    path("projects/<int:project_id>/tests/<int:test_id>/mark_status/<str:status>/", project_tests_mark_status_view, name="project_tests_mark_status"),
+    path('projects/<int:project_id>/tests/<int:test_id>/send_files/', project_tests_send_files_view, name='project_tests_send_files'),
 ]
 
 # Статика
