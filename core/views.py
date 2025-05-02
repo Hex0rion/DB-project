@@ -514,9 +514,14 @@ def project_detail_view(request, project_id):
             user_is_manager = True
         elif user_role == 'manager':
             cursor.execute("""
-                SELECT COUNT(*) FROM assignments
-                WHERE project_id = %s AND user_id = %s AND role = 'manager'
-            """, [project_id, user_id])
+                SELECT u.id, u.full_name, u.role
+                FROM users u
+                WHERE u.role IN ('admin', 'manager', 'dev', 'tester')
+                AND NOT EXISTS (
+                    SELECT 1 FROM assignments a
+                    WHERE a.project_id = %s AND a.user_id = u.id
+                )
+            """, [project_id])
             user_is_manager = cursor.fetchone()[0] > 0
 
         # Обработка POST-запроса: назначение/удаление
@@ -606,7 +611,7 @@ def project_detail_view(request, project_id):
         cursor.execute("""
             SELECT u.id, u.full_name, u.role
             FROM users u
-            WHERE u.role IN ('manager', 'dev', 'tester')
+            WHERE u.role IN ('admin', 'manager', 'dev', 'tester')
             AND NOT EXISTS (
                 SELECT 1 FROM assignments a
                 WHERE a.project_id = %s AND a.user_id = u.id
