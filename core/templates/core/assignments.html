@@ -101,9 +101,9 @@ input#userSearch {
       </div>
       <div>Укомплектованность:</div>
       <div class="role-status">
-        <div class="role-badge {% if project.staff_fulfilled.dev %}role-filled{% endif %}">Разраб. ({{ project.roles_count.dev }})</div>
-        <div class="role-badge {% if project.staff_fulfilled.tester %}role-filled{% endif %}">Тест. ({{ project.roles_count.tester }})</div>
-        <div class="role-badge {% if project.staff_fulfilled.manager %}role-filled{% endif %}">Мен. ({{ project.roles_count.manager }})</div>
+        <div class="role-badge {% if project.staff_fulfilled.dev %}role-filled{% endif %}">Разработчик ({{ project.roles_count.dev }})</div>
+        <div class="role-badge {% if project.staff_fulfilled.tester %}role-filled{% endif %}">Тестировщик ({{ project.roles_count.tester }})</div>
+        <div class="role-badge {% if project.staff_fulfilled.manager %}role-filled{% endif %}">Менеджер ({{ project.roles_count.manager }})</div>
       </div>
     </div>
     {% if selected_project and selected_project.id == project.id %}
@@ -147,13 +147,13 @@ input#userSearch {
                 <span>{{ user.full_name }} ({{ user.role_display }})</span>
                 <span>
                     {% if user.role == 'dev' or user.role == 'manager' or user.role == 'admin' %}
-                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'dev')">Разраб.</button>
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'dev')">Разработчик</button>
                   {% endif %}
                   {% if user.role == 'tester' or user.role == 'manager' or user.role == 'admin' %}
-                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'tester')">Тест.</button>
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'tester')">Тестировщик</button>
                   {% endif %}
                   {% if user.role == 'manager' or user.role == 'admin' %}
-                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'manager')">Мен.</button>
+                    <button type="button" class="assign" onclick="assign('{{ user.id }}', 'manager')">Менеджер</button>
                   {% endif %}
                 </span>
               </div>

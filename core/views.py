@@ -1,24 +1,20 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login, logout
-from django.contrib import messages
-from django.contrib.auth.hashers import make_password
-from core.models import User
-from django.contrib.auth.decorators import login_required
-from core.models import Project
-from django.contrib.auth.hashers import check_password
-from django.db import connection
+import os
 import re
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponseForbidden, Http404
-from core.models import Project
-from django.shortcuts import render, redirect
-from django.http import HttpResponseForbidden, HttpResponseNotFound
-from django.contrib.messages import get_messages
-from django.contrib import messages
-from django.shortcuts import render, redirect
-from django.db import connection
-from django.contrib import messages
+from datetime import datetime, date
 
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.hashers import check_password, make_password
+from django.db import connection
+from django.http import HttpResponseForbidden, HttpResponseNotFound, Http404
+from django.shortcuts import render, redirect, get_object_or_404
+
+from core.models import User, Project, DevFile, Task
+from .forms import DevFileForm
+
+# === Аутентификация и авторизация ===
 def login_view(request):
     if request.method == 'POST':
         login_input = request.POST.get('username')
@@ -44,41 +40,12 @@ def login_view(request):
 
     return render(request, 'core/login.html', {'show_login_messages': True})
 
-
-
-
 def logout_view(request):
     response = redirect('/login/')
     response.delete_cookie('user_id')
     response.delete_cookie('user_role')
     response.delete_cookie('username')
     return response
-
-def approve_user_view(request, user_id):
-    if request.COOKIES.get('user_role') != 'admin':
-        return HttpResponseForbidden("Доступ запрещен")
-
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT role, desired_role, login FROM users WHERE id = %s", [user_id])
-        result = cursor.fetchone()
-
-        if not result:
-            return HttpResponseNotFound("Пользователь не найден")
-
-        role, desired_role, login = result
-
-        if role == 'pending' and desired_role:
-            cursor.execute("""
-                UPDATE users
-                SET role = %s,
-                    desired_role = NULL
-                WHERE id = %s
-            """, [desired_role, user_id])
-
-            messages.success(request, f"Роль пользователя {login} подтверждена.")
-
-    return redirect('/users/')
-
 
 def register_view(request):
     if request.method == 'POST':
@@ -138,6 +105,32 @@ def register_view(request):
     return render(request, 'core/register.html')
 
 
+# === Управление пользователями ===
+def approve_user_view(request, user_id):
+    if request.COOKIES.get('user_role') != 'admin':
+        return HttpResponseForbidden("Доступ запрещен")
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT role, desired_role, login FROM users WHERE id = %s", [user_id])
+        result = cursor.fetchone()
+
+        if not result:
+            return HttpResponseNotFound("Пользователь не найден")
+
+        role, desired_role, login = result
+
+        if role == 'pending' and desired_role:
+            cursor.execute("""
+                UPDATE users
+                SET role = %s,
+                    desired_role = NULL
+                WHERE id = %s
+            """, [desired_role, user_id])
+
+            messages.success(request, f"Роль пользователя {login} подтверждена.")
+
+    return redirect('/users/')
+
 def reject_user_view(request, user_id):
     if request.COOKIES.get('user_role') != 'admin':
         return HttpResponseForbidden("Доступ запрещен")
@@ -161,24 +154,6 @@ def reject_user_view(request, user_id):
             messages.info(request, f"Заявка на роль у пользователя {login} отклонена.")
 
     return redirect('/users/')
-
-
-
-def home_view(request):
-    user_id = request.COOKIES.get('user_id')
-    role = request.COOKIES.get('user_role')
-    username = request.COOKIES.get('user_name')
-
-    if not user_id:
-        return redirect('/login/')
-
-    projects = Project.objects.all().only('id', 'name')
-
-    return render(request, 'core/home.html', {
-        'username': username,
-        'role': role,
-        'projects': projects,
-    })
 
 def users_view(request):
     if request.COOKIES.get('user_role') != 'admin':
@@ -218,9 +193,6 @@ def users_view(request):
         'role_filter': role_filter,
     })
 
-
-
-
 def create_user_view(request):
     if request.COOKIES.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
@@ -256,8 +228,6 @@ def create_user_view(request):
 
     return render(request, 'core/create_user.html')
 
-
-
 def edit_user_view(request, id):
     if request.COOKIES.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
@@ -278,7 +248,6 @@ def edit_user_view(request, id):
 
     return render(request, 'core/edit_user.html', {'user': user})
 
-
 def delete_user_view(request, id):
     if request.COOKIES.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
@@ -288,17 +257,24 @@ def delete_user_view(request, id):
     messages.success(request, 'Пользователь удалён.')
     return redirect('/users/')
 
-from datetime import datetime
+# === Домашняя страница ===
+def home_view(request):
+    user_id = request.COOKIES.get('user_id')
+    role = request.COOKIES.get('user_role')
+    username = request.COOKIES.get('user_name')
 
+    if not user_id:
+        return redirect('/login/')
 
-from datetime import datetime
+    projects = Project.objects.all().only('id', 'name')
 
-from datetime import datetime, date
-from django.shortcuts import render, redirect
-from django.db import connection
+    return render(request, 'core/home.html', {
+        'username': username,
+        'role': role,
+        'projects': projects,
+    })
 
-from datetime import datetime, date
-
+# === Проекты ===
 def project_list_view(request):
     user_role = request.COOKIES.get('user_role')
     if not user_role:
@@ -351,9 +327,6 @@ def project_list_view(request):
         'projects': projects,
         'role': user_role,
     })
-
-
-from datetime import datetime
 
 def project_create_view(request):
     user_role = request.COOKIES.get('user_role')
@@ -412,11 +385,6 @@ def project_create_view(request):
     return render(request, 'core/project_create.html', {
         'statuses': VALID_STATUSES
     })
-
-
-
-
-from django.http import HttpResponseNotFound
 
 def project_edit_view(request, project_id):
     user_role = request.COOKIES.get('user_role')
@@ -502,7 +470,6 @@ def project_edit_view(request, project_id):
         'input': project,
     })
 
-
 def project_delete_view(request, project_id):
     user_role = request.COOKIES.get('user_role')
     if user_role not in ['admin', 'manager']:
@@ -518,20 +485,20 @@ def project_delete_view(request, project_id):
     messages.success(request, "Проект удалён.")
     return redirect('/projects/')
 
-from django.shortcuts import render, redirect
-from django.db import connection
-
 def project_detail_view(request, project_id):
+    user_role = request.COOKIES.get('user_role')
+    user_id = request.COOKIES.get('user_id')
+
     with connection.cursor() as cursor:
-        # Получаем проект
+        # Получение данных проекта
         cursor.execute("""
             SELECT id, name, start_date, end_date, status
             FROM projects
             WHERE id = %s
         """, [project_id])
         row = cursor.fetchone()
-        if not row:
-            return redirect('/projects/')
+        if row is None:
+            return HttpResponseNotFound("Проект не найден")
 
         project = {
             'id': row[0],
@@ -541,7 +508,42 @@ def project_detail_view(request, project_id):
             'status': row[4],
         }
 
-        # ✅ Показываем только последние версии файлов
+        # Проверка прав: admin или manager проекта
+        user_is_manager = False
+        if user_role == 'admin':
+            user_is_manager = True
+        elif user_role == 'manager':
+            cursor.execute("""
+                SELECT COUNT(*) FROM assignments
+                WHERE project_id = %s AND user_id = %s AND role = 'manager'
+            """, [project_id, user_id])
+            user_is_manager = cursor.fetchone()[0] > 0
+
+        # Обработка POST-запроса: назначение/удаление
+        if request.method == 'POST' and user_is_manager:
+            remove_user_id = request.POST.get('remove_user_id')
+            if remove_user_id:
+                cursor.execute("""
+                    DELETE FROM assignments
+                    WHERE project_id = %s AND user_id = %s
+                """, [project_id, remove_user_id])
+                return redirect(f"/projects/{project_id}/")
+
+            target_user_id = request.POST.get('user_id')
+            assign_role = request.POST.get('assign_role')
+            if target_user_id and assign_role:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM assignments
+                    WHERE project_id = %s AND user_id = %s
+                """, [project_id, target_user_id])
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute("""
+                        INSERT INTO assignments (project_id, user_id, role, assigned_date)
+                        VALUES (%s, %s, %s, NOW())
+                    """, [project_id, target_user_id, assign_role])
+                return redirect(f"/projects/{project_id}/")
+
+        # Получение последних версий файлов
         cursor.execute("""
             SELECT f1.file_name, f1.file_path, f1.uploaded_at, u.full_name
             FROM dev_files f1
@@ -555,18 +557,12 @@ def project_detail_view(request, project_id):
             WHERE f1.project_id = %s
             ORDER BY f1.uploaded_at DESC
         """, [project_id, project_id])
-
         files = [
-            {
-                'file_name': row[0],
-                'file_path': row[1],
-                'uploaded_at': row[2],
-                'full_name': row[3],
-            }
-            for row in cursor.fetchall()
+            {'file_name': r[0], 'file_path': r[1], 'uploaded_at': r[2], 'full_name': r[3]}
+            for r in cursor.fetchall()
         ]
 
-        # ✅ Получаем тесты проекта
+        # Получение тестов
         cursor.execute("""
             SELECT id, test_type, description, status, tested_at
             FROM tests
@@ -575,26 +571,101 @@ def project_detail_view(request, project_id):
         """, [project_id])
         tests = cursor.fetchall()
 
-        # ✅ Получаем ответственных
+        # Получение назначенных пользователей
         cursor.execute("""
-            SELECT u.id, u.full_name
-            FROM users u
-            JOIN assignments a ON a.user_id = u.id
+            SELECT u.id, u.full_name, a.role
+            FROM assignments a
+            JOIN users u ON u.id = a.user_id
             WHERE a.project_id = %s
         """, [project_id])
-        responsible = cursor.fetchall()
+        assigned_raw = cursor.fetchall()
+
+        responsible_by_role = {
+            'manager': [],
+            'dev': [],
+            'tester': [],
+        }
+
+        for user_id, full_name, role in assigned_raw:
+            if role in responsible_by_role:
+                responsible_by_role[role].append({
+                    'id': user_id,
+                    'full_name': full_name,
+                    'role': role,
+                    'role_display': role_display(role),
+                })
+
+        # Укомплектованность по ролям
+        staff_fulfilled = {
+            'manager': len(responsible_by_role['manager']) > 0,
+            'dev': len(responsible_by_role['dev']) > 0,
+            'tester': len(responsible_by_role['tester']) > 0,
+        }
+
+        # Доступные пользователи
+        cursor.execute("""
+            SELECT u.id, u.full_name, u.role
+            FROM users u
+            WHERE u.role IN ('manager', 'dev', 'tester')
+            AND NOT EXISTS (
+                SELECT 1 FROM assignments a
+                WHERE a.project_id = %s AND a.user_id = u.id
+            )
+        """, [project_id])
+        available_users = [
+            {'id': r[0], 'full_name': r[1], 'role': r[2], 'role_display': role_display(r[2])}
+            for r in cursor.fetchall()
+        ]
+
+    assigned_counts = {
+        'manager': len(responsible_by_role['manager']),
+        'dev': len(responsible_by_role['dev']),
+        'tester': len(responsible_by_role['tester']),
+    }
 
     return render(request, 'core/project_detail.html', {
         'project': project,
         'files': files,
         'tests': tests,
-        'responsible': responsible,
-        'role': request.COOKIES.get('user_role'),
+        'assignments': [
+            {
+                'id': r[0],
+                'full_name': r[1],
+                'role': r[2],
+                'role_display': role_display(r[2])
+            }
+            for r in assigned_raw
+        ],
+        'staff_fulfilled': staff_fulfilled,
+        'assigned_counts': assigned_counts, 
+        'available_users': available_users,
+        'role': user_role,
+        'user_is_manager': user_is_manager,
+        'roles': ['manager', 'dev', 'tester'],
     })
 
-from django.shortcuts import render, redirect
-from django.db import connection
-from datetime import datetime
+# === Назначения ===
+def assign_user(request, project_id):
+    user_id = request.POST.get("user_id")
+    role = request.POST.get("assign_role")
+    if user_id and role:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO assignments (project_id, user_id, role)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE role = VALUES(role)
+            """, [project_id, user_id, role])
+    return redirect(f"/projects/{project_id}/")
+
+def remove_user(request, project_id):
+    user_id = request.POST.get("remove_user_id")
+    if user_id:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM assignments WHERE project_id = %s AND user_id = %s",
+                [project_id, user_id]
+            )
+    return redirect(f"/projects/{project_id}/")
 
 def assignment_list_view(request):
     user_role = request.COOKIES.get('user_role')
@@ -725,23 +796,7 @@ def assignment_list_view(request):
         'available': available
     })
 
-
-def role_display(role):
-    return {
-        'admin': 'Админ',
-        'manager': 'Менеджер',
-        'tester': 'Тестировщик',
-        'dev': 'Разработчик'
-    }.get(role, role)
-
-def role_display(role):
-    return {
-        'admin': 'Админ',
-        'manager': 'Менеджер',
-        'dev': 'Разработчик',
-        'tester': 'Тестировщик',
-    }.get(role, role)
-
+# === Файлы ===
 def file_list_view(request):
     project_id = request.GET.get('project_id')
     author_id = request.GET.get('author_id')
@@ -773,19 +828,6 @@ def file_list_view(request):
     ]
 
     return render(request, 'core/files.html', {'files': files})
-
-def testresult_list_view(request):
-    user_role = request.COOKIES.get('user_role')
-    if not user_role:
-        return redirect('/login/')
-
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT id, task_id, status FROM test_results")
-        rows = cursor.fetchall()
-
-    test_results = [{'id': row[0], 'task_id': row[1], 'result': row[2]} for row in rows]
-
-    return render(request, 'core/tests.html', {'test_results': test_results})
 
 def file_upload_view(request):
     if request.method == 'POST':
@@ -821,143 +863,30 @@ def file_versions_view(request, file_id):
         versions = dictfetchall(cursor)
     return render(request, 'core/file_versions.html', {'versions': versions, 'file_id': file_id})
 
-def dictfetchall(cursor):
-    "Преобразует результат cursor.fetchall() в список словарей"
-    columns = [col[0] for col in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+def delete_file_view(request, file_id):
+    user_id = request.COOKIES.get('user_id')
 
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.db import connection
-import os
-from django.conf import settings
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT project_id, file_name, file_path FROM dev_files WHERE id = %s", [file_id])
+        row = cursor.fetchone()
 
-import os
-from django.conf import settings
-from django.shortcuts import redirect
-from django.db import connection
+        if not row:
+            return HttpResponseNotFound("Файл не найден.")
 
-# Обновим функцию для загрузки файла с автоматическим указанием project_id
-from datetime import datetime
+        project_id, file_name, file_path = row
 
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.db import connection
+        # фиксируем коммит об удалении
+        cursor.execute("""
+            INSERT INTO commits (project_id, author_id, committed_at, commit_message,
+                                 file_name, action, old_path, new_path, diff)
+            VALUES (%s, %s, NOW(), %s, %s, 'deleted', %s, '', NULL)
+        """, [project_id, user_id, f"Удаление файла {file_name}", file_name, file_path])
 
-import os
-from django.conf import settings
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.db import connection
-from datetime import datetime
+        # удаляем текущую версию из dev_files
+        cursor.execute("DELETE FROM dev_files WHERE id = %s", [file_id])
 
-def project_upload_file_view(request, project_id):
-    if request.method == "POST":
-        file = request.FILES.get("file")
-        file_name = request.POST.get("file_name") or file.name
-        user_id = request.COOKIES.get("user_id")
-
-        # Путь на диске: media/uploads/project_<id>/
-        relative_path = f"uploads/project_{project_id}/{file_name}"
-        full_dir = os.path.join(settings.MEDIA_ROOT, f"uploads/project_{project_id}")
-        full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-
-        os.makedirs(full_dir, exist_ok=True)
-
-        with open(full_path, 'wb') as destination:
-            for chunk in file.chunks():
-                destination.write(chunk)
-
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
-                VALUES (%s, %s, %s, %s, %s)
-            """, [project_id, user_id, file_name, relative_path, datetime.now()])
-
-        messages.success(request, f"Файл «{file_name}» загружен.")
-    return redirect(f"/projects/{project_id}/")
-
-
-from datetime import datetime
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.db import connection
-
-def project_add_test_view(request, project_id):
-    if request.method == 'POST':
-        description = request.POST.get('description', '').strip()
-        status = request.POST.get('status', '').strip()
-        test_type = request.POST.get('test_type', '').strip()
-        tester_id = request.COOKIES.get('user_id')
-
-        if not description or not status or not test_type:
-            messages.error(request, "Все поля обязательны для заполнения.")
-            return redirect(f'/projects/{project_id}/')
-
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO tests (project_id, test_type, description, status, tester_id)
-                VALUES (%s, %s, %s, %s, %s)
-            """, [project_id, test_type, description, status, tester_id])
-
-        messages.success(request, "Тест успешно добавлен.")
-    return redirect(f'/projects/{project_id}/')
-
-def project_assign_user_view(request, project_id):
-    if request.method == 'POST':
-        user_id = request.POST.get('user_id')
-        if not user_id:
-            messages.error(request, "Пользователь не выбран.")
-            return redirect(f'/projects/{project_id}/')
-
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO assignments (project_id, user_id)
-                VALUES (%s, %s)
-            """, [project_id, user_id])
-
-        messages.success(request, "Пользователь назначен.")
-    return redirect(f'/projects/{project_id}/')
-
-import os
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.db import connection
-
-def project_sync_files_view(request, project_id):
-    uploads_dir = os.path.join("C:/Users/BMSTU/Documents/uploads", f"project_{project_id}")
-    os.makedirs(uploads_dir, exist_ok=True)
-    author_id = request.COOKIES.get("user_id")
-
-    added_count = 0
-    for file_name in os.listdir(uploads_dir):
-        file_path = os.path.join(uploads_dir, file_name)
-
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT id FROM dev_files WHERE file_name = %s AND project_id = %s", [file_name, project_id])
-            if cursor.fetchone():
-                continue  # файл уже добавлен
-
-            try:
-                cursor.execute("""
-                    INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
-                    VALUES (%s, %s, %s, %s, NOW())
-                """, [project_id, author_id, file_name, file_path])
-                added_count += 1
-            except Exception as e:
-                print("Ошибка при вставке файла:", e)
-                messages.error(request, f"Ошибка при добавлении: {file_name}")
-
-    if added_count > 0:
-        messages.success(request, f"Синхронизировано файлов: {added_count}")
-    else:
-        messages.info(request, "Новых файлов не найдено.")
-
-    return redirect(f"/projects/{project_id}/")
-
-from django.shortcuts import render, redirect, get_object_or_404
-from .models import DevFile, Task
-from .forms import DevFileForm
+    messages.success(request, f"Файл «{file_name}» удалён.")
+    return redirect('/files/')
 
 def upload_file(request, task_id):
     task = get_object_or_404(Task, id=task_id)
@@ -973,13 +902,7 @@ def upload_file(request, task_id):
         form = DevFileForm()
     return render(request, 'upload_file.html', {'form': form, 'task': task})
 
-import os
-from datetime import datetime
-from django.conf import settings
-from django.contrib import messages
-from django.db import connection
-from django.shortcuts import redirect
-
+# === Работа с файлами через коммиты ===
 def project_commit_upload_view(request, project_id):
     if request.method == "POST":
         uploaded_file = request.FILES.get("file")
@@ -1119,29 +1042,107 @@ def commit_detail_view(request, commit_id):
         'commit': commit
     })
 
-from django.http import HttpResponseNotFound
+def project_upload_file_view(request, project_id):
+    if request.method == "POST":
+        file = request.FILES.get("file")
+        file_name = request.POST.get("file_name") or file.name
+        user_id = request.COOKIES.get("user_id")
 
-def delete_file_view(request, file_id):
-    user_id = request.COOKIES.get('user_id')
+        # Путь на диске: media/uploads/project_<id>/
+        relative_path = f"uploads/project_{project_id}/{file_name}"
+        full_dir = os.path.join(settings.MEDIA_ROOT, f"uploads/project_{project_id}")
+        full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+
+        os.makedirs(full_dir, exist_ok=True)
+
+        with open(full_path, 'wb') as destination:
+            for chunk in file.chunks():
+                destination.write(chunk)
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, [project_id, user_id, file_name, relative_path, datetime.now()])
+
+        messages.success(request, f"Файл «{file_name}» загружен.")
+    return redirect(f"/projects/{project_id}/")
+
+def project_sync_files_view(request, project_id):
+    uploads_dir = os.path.join("C:/Users/BMSTU/Documents/uploads", f"project_{project_id}")
+    os.makedirs(uploads_dir, exist_ok=True)
+    author_id = request.COOKIES.get("user_id")
+
+    added_count = 0
+    for file_name in os.listdir(uploads_dir):
+        file_path = os.path.join(uploads_dir, file_name)
+
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id FROM dev_files WHERE file_name = %s AND project_id = %s", [file_name, project_id])
+            if cursor.fetchone():
+                continue  # файл уже добавлен
+
+            try:
+                cursor.execute("""
+                    INSERT INTO dev_files (project_id, author_id, file_name, file_path, uploaded_at)
+                    VALUES (%s, %s, %s, %s, NOW())
+                """, [project_id, author_id, file_name, file_path])
+                added_count += 1
+            except Exception as e:
+                print("Ошибка при вставке файла:", e)
+                messages.error(request, f"Ошибка при добавлении: {file_name}")
+
+    if added_count > 0:
+        messages.success(request, f"Синхронизировано файлов: {added_count}")
+    else:
+        messages.info(request, "Новых файлов не найдено.")
+
+    return redirect(f"/projects/{project_id}/")
+
+# === Тесты ===
+def testresult_list_view(request):
+    user_role = request.COOKIES.get('user_role')
+    if not user_role:
+        return redirect('/login/')
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT project_id, file_name, file_path FROM dev_files WHERE id = %s", [file_id])
-        row = cursor.fetchone()
+        cursor.execute("SELECT id, task_id, status FROM test_results")
+        rows = cursor.fetchall()
 
-        if not row:
-            return HttpResponseNotFound("Файл не найден.")
+    test_results = [{'id': row[0], 'task_id': row[1], 'result': row[2]} for row in rows]
 
-        project_id, file_name, file_path = row
+    return render(request, 'core/tests.html', {'test_results': test_results})
 
-        # фиксируем коммит об удалении
-        cursor.execute("""
-            INSERT INTO commits (project_id, author_id, committed_at, commit_message,
-                                 file_name, action, old_path, new_path, diff)
-            VALUES (%s, %s, NOW(), %s, %s, 'deleted', %s, '', NULL)
-        """, [project_id, user_id, f"Удаление файла {file_name}", file_name, file_path])
+def project_add_test_view(request, project_id):
+    if request.method == 'POST':
+        description = request.POST.get('description', '').strip()
+        status = request.POST.get('status', '').strip()
+        test_type = request.POST.get('test_type', '').strip()
+        tester_id = request.COOKIES.get('user_id')
 
-        # удаляем текущую версию из dev_files
-        cursor.execute("DELETE FROM dev_files WHERE id = %s", [file_id])
+        if not description or not status or not test_type:
+            messages.error(request, "Все поля обязательны для заполнения.")
+            return redirect(f'/projects/{project_id}/')
 
-    messages.success(request, f"Файл «{file_name}» удалён.")
-    return redirect('/files/')
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO tests (project_id, test_type, description, status, tester_id)
+                VALUES (%s, %s, %s, %s, %s)
+            """, [project_id, test_type, description, status, tester_id])
+
+        messages.success(request, "Тест успешно добавлен.")
+    return redirect(f'/projects/{project_id}/')
+
+# === Утилиты ===
+def dictfetchall(cursor):
+    "Преобразует результат cursor.fetchall() в список словарей"
+    columns = [col[0] for col in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+def role_display(role):
+    return {
+        'admin': 'Администратор',
+        'manager': 'Менеджер',
+        'dev': 'Разработчик',
+        'tester': 'Тестировщик',
+    }.get(role, role)
