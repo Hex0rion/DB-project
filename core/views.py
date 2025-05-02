@@ -28,11 +28,12 @@ def login_view(request):
                     messages.error(request, 'Ваша учетная запись ожидает подтверждения администратора.')
                     return redirect('/login/')
 
-                response = redirect('/')
-                response.set_cookie('user_id', user.id)
-                response.set_cookie('user_role', user.role)
-                response.set_cookie('user_name', user.full_name)
-                return response
+                # Сохраняем данные в сессии
+                request.session['user_id'] = user.id
+                request.session['user_role'] = user.role
+                request.session['user_name'] = user.full_name
+
+                return redirect('/')
             else:
                 messages.error(request, 'Неверный логин или пароль.')
         except User.DoesNotExist:
@@ -107,7 +108,7 @@ def register_view(request):
 
 # === Управление пользователями ===
 def approve_user_view(request, user_id):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden("Доступ запрещен")
 
     with connection.cursor() as cursor:
@@ -132,7 +133,7 @@ def approve_user_view(request, user_id):
     return redirect('/users/')
 
 def reject_user_view(request, user_id):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden("Доступ запрещен")
 
     with connection.cursor() as cursor:
@@ -156,7 +157,7 @@ def reject_user_view(request, user_id):
     return redirect('/users/')
 
 def users_view(request):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden("Доступ запрещен")
 
     search = request.GET.get('search', '')
@@ -194,7 +195,7 @@ def users_view(request):
     })
 
 def create_user_view(request):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
 
     if request.method == 'POST':
@@ -229,7 +230,7 @@ def create_user_view(request):
     return render(request, 'core/create_user.html')
 
 def edit_user_view(request, id):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
 
     try:
@@ -249,7 +250,7 @@ def edit_user_view(request, id):
     return render(request, 'core/edit_user.html', {'user': user})
 
 def delete_user_view(request, id):
-    if request.COOKIES.get('user_role') != 'admin':
+    if request.session.get('user_role') != 'admin':
         return HttpResponseForbidden('Доступ запрещён')
 
     with connection.cursor() as cursor:
@@ -259,9 +260,9 @@ def delete_user_view(request, id):
 
 # === Домашняя страница ===
 def home_view(request):
-    user_id = request.COOKIES.get('user_id')
-    role = request.COOKIES.get('user_role')
-    username = request.COOKIES.get('user_name')
+    user_id = request.session.get('user_id')
+    role = request.session.get('user_role')
+    username = request.session.get('user_name')
 
     if not user_id:
         return redirect('/login/')
@@ -276,7 +277,7 @@ def home_view(request):
 
 # === Проекты ===
 def project_list_view(request):
-    user_role = request.COOKIES.get('user_role')
+    user_role = request.session.get('user_role')
     if not user_role:
         return redirect('/login/')
 
@@ -329,7 +330,7 @@ def project_list_view(request):
     })
 
 def project_create_view(request):
-    user_role = request.COOKIES.get('user_role')
+    user_role = request.session.get('user_role')
     if user_role not in ['admin', 'manager']:
         return HttpResponseForbidden("Доступ запрещён")
 
@@ -387,7 +388,7 @@ def project_create_view(request):
     })
 
 def project_edit_view(request, project_id):
-    user_role = request.COOKIES.get('user_role')
+    user_role = request.session.get('user_role')
     if user_role not in ['admin', 'manager']:
         return HttpResponseForbidden("Доступ запрещён")
 
@@ -471,7 +472,7 @@ def project_edit_view(request, project_id):
     })
 
 def project_delete_view(request, project_id):
-    user_role = request.COOKIES.get('user_role')
+    user_role = request.session.get('user_role')
     if user_role not in ['admin', 'manager']:
         return HttpResponseForbidden("Доступ запрещён")
 
@@ -486,8 +487,8 @@ def project_delete_view(request, project_id):
     return redirect('/projects/')
 
 def project_detail_view(request, project_id):
-    user_role = request.COOKIES.get('user_role')
-    user_id = request.COOKIES.get('user_id')
+    user_role = request.session.get('user_role')
+    user_id = request.session.get('user_id')
 
     with connection.cursor() as cursor:
         # Получение данных проекта
@@ -680,8 +681,8 @@ def remove_user(request, project_id):
     return redirect(f"/projects/{project_id}/")
 
 def assignment_list_view(request):
-    user_role = request.COOKIES.get('user_role')
-    user_id = request.COOKIES.get('user_id')
+    user_role = request.session.get('user_role')
+    user_id = request.session.get('user_id')
 
     selected_project_id = request.GET.get('project_id')
     selected_project = None
@@ -845,7 +846,7 @@ def file_list_view(request):
 def file_upload_view(request):
     if request.method == 'POST':
         task_id = request.POST.get('task_id')
-        author_id = request.COOKIES.get('user_id')
+        author_id = request.session.get('user_id')
         file_name = request.POST.get('file_name')
         file_path = request.POST.get('file_path')  # Или реальный путь после загрузки
 
@@ -877,7 +878,7 @@ def file_versions_view(request, file_id):
     return render(request, 'core/file_versions.html', {'versions': versions, 'file_id': file_id})
 
 def delete_file_view(request, file_id):
-    user_id = request.COOKIES.get('user_id')
+    user_id = request.session.get('user_id')
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT project_id, file_name, file_path FROM dev_files WHERE id = %s", [file_id])
@@ -921,7 +922,7 @@ def project_commit_upload_view(request, project_id):
         uploaded_file = request.FILES.get("file")
         file_name = request.POST.get("file_name") or uploaded_file.name
         commit_message = request.POST.get("commit_message") or f"Обновление файла {file_name}"
-        user_id = request.COOKIES.get("user_id")
+        user_id = request.session.get("user_id")
 
         # Время коммита
         committed_at = datetime.now()
@@ -1059,7 +1060,7 @@ def project_upload_file_view(request, project_id):
     if request.method == "POST":
         file = request.FILES.get("file")
         file_name = request.POST.get("file_name") or file.name
-        user_id = request.COOKIES.get("user_id")
+        user_id = request.session.get("user_id")
 
         # Путь на диске: media/uploads/project_<id>/
         relative_path = f"uploads/project_{project_id}/{file_name}"
@@ -1084,7 +1085,7 @@ def project_upload_file_view(request, project_id):
 def project_sync_files_view(request, project_id):
     uploads_dir = os.path.join("C:/Users/BMSTU/Documents/uploads", f"project_{project_id}")
     os.makedirs(uploads_dir, exist_ok=True)
-    author_id = request.COOKIES.get("user_id")
+    author_id = request.session.get("user_id")
 
     added_count = 0
     for file_name in os.listdir(uploads_dir):
@@ -1114,7 +1115,7 @@ def project_sync_files_view(request, project_id):
 
 # === Тесты ===
 def testresult_list_view(request):
-    user_role = request.COOKIES.get('user_role')
+    user_role = request.session.get('user_role')
     if not user_role:
         return redirect('/login/')
 
@@ -1147,7 +1148,7 @@ def testresult_list_view(request):
 
 def project_add_test_view(request, project_id):
     if request.method == 'POST':
-        user_role = request.COOKIES.get('user_role')
+        user_role = request.session.get('user_role')
         if user_role not in ['admin', 'manager', 'tester']:
             return HttpResponseForbidden("Недостаточно прав")
 
@@ -1157,7 +1158,7 @@ def project_add_test_view(request, project_id):
         if test_type == 'other':
             test_type = request.POST.get('test_type_custom', '').strip()
 
-        tester_id = request.COOKIES.get('user_id')
+        tester_id = request.session.get('user_id')
 
         if not description or not test_type:
             messages.error(request, "Все поля обязательны для заполнения.")
@@ -1173,8 +1174,8 @@ def project_add_test_view(request, project_id):
     return redirect(f'/projects/{project_id}/')
 
 def project_tests_view(request, project_id):
-    user_id = request.COOKIES.get("user_id")
-    user_role = request.COOKIES.get("user_role")
+    user_id = request.session.get("user_id")
+    user_role = request.session.get("user_role")
     role_is_manager = False
     role_is_tester = False
     role_is_dev = False
@@ -1246,14 +1247,14 @@ def project_tests_view(request, project_id):
     })
 
 def project_tests_mark_passed_view(request, project_id, test_id):
-    user_id = request.COOKIES.get("user_id")
+    user_id = request.session.get("user_id")
 
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT 1 FROM assignments
             WHERE project_id = %s AND user_id = %s AND role = 'tester'
         """, [project_id, user_id])
-        is_tester = cursor.fetchone() or request.COOKIES.get('user_role') == 'admin'
+        is_tester = cursor.fetchone() or request.session.get('user_role') == 'admin'
 
         if not is_tester:
             return HttpResponseForbidden("Недостаточно прав")
@@ -1271,8 +1272,8 @@ def project_tests_send_files_view(request, project_id, test_id):
     if request.method != 'POST':
         return HttpResponseForbidden("Только POST разрешен")
 
-    user_id = request.COOKIES.get("user_id")
-    role = request.COOKIES.get("user_role")
+    user_id = request.session.get("user_id")
+    role = request.session.get("user_role")
 
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -1298,8 +1299,8 @@ def project_tests_mark_status_view(request, project_id, test_id, status):
     if request.method != "POST":
         return HttpResponseForbidden("Только POST разрешен")
 
-    user_id = request.COOKIES.get("user_id")
-    role = request.COOKIES.get("user_role")
+    user_id = request.session.get("user_id")
+    role = request.session.get("user_role")
 
     if status not in ['пройден', 'провален', 'пропущен']:
         return HttpResponseForbidden("Недопустимый статус")

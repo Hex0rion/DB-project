@@ -3,11 +3,9 @@
 {% block title %}Вход{% endblock %}
 
 {% block content %}
-
 <div style="text-align: center;">
   <h2>🔐 Вход в систему</h2>
 </div>
-
 
 {% if show_login_messages %}
   {% if messages %}
@@ -36,6 +34,9 @@
     <input type="password" name="password" id="password" required class="form-input">
   </div>
 
-  <button type="submit" class="form-button">🚀 Войти</button>
+  <div style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
+    <button type="button" class="form-button" onclick="window.location.href='/register/'">Регистрация</button>
+    <button type="submit" class="form-button">Войти</button>
+  </div>
 </form>
 {% endblock %}
